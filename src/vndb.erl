@@ -9,6 +9,7 @@
 
 connect() -> connect("api.vndb.org", 19535, true).
 connect(Host, Port, SSL) ->
+	true = jsx:maps_support(),
 	Opts = [binary, {packet, 0}, {active, false}],
 	case SSL of
 		false ->
@@ -33,12 +34,12 @@ cmd({vndb, S, Send, Recv, _}, Cmd) ->
 			binary_to_atom(Name, utf8);
 		{Space, noterm} ->
 			<<Name:Space/binary, " ", Rest>> = R,
-			{incomplete, F} = jsx:decode(Rest, [stream]),
+			{incomplete, F} = jsx:decode(Rest, [stream, return_maps]),
 			cmd_recvmore(S, Recv, F, binary_to_atom(Name, utf8));
 		{Space, Term} ->
 			Restlen = Term - Space - 1,
 			<<Name:Space/binary, " ", Rest:Restlen/binary, 4>> = R,
-			{binary_to_atom(Name, utf8), jsx:decode(Rest)}
+			{binary_to_atom(Name, utf8), jsx:decode(Rest, [return_maps])}
 	end.
 
 cmd_restype(R) ->
