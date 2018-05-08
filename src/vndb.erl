@@ -35,7 +35,7 @@ cmd({vndb, S, Send, Recv, _}, Cmd) ->
 		{Space, noterm} ->
 			<<Name:Space/binary, " ", Rest>> = R,
 			{incomplete, F} = jsx:decode(Rest, [stream, return_maps]),
-			cmd_recvmore(S, Recv, F, binary_to_atom(Name, utf8));
+			{binary_to_atom(Name, utf8), cmd_recvmore(S, Recv, F)};
 		{Space, Term} ->
 			Restlen = Term - Space - 1,
 			<<Name:Space/binary, " ", Rest:Restlen/binary, 4>> = R,
@@ -57,16 +57,16 @@ cmd_term(R) ->
 		_Else -> noterm
 	end.
 
-cmd_recvmore(S, Recv, F, Cmdname) ->
+cmd_recvmore(S, Recv, F) ->
 	{ok, Response} = Recv(S, 0),
 	case cmd_term(Response) of
 		noterm ->
 			{incomplete, G} = F(Response),
-			cmd_recvmore(S, Recv, G, Cmdname);
+			cmd_recvmore(S, Recv, G);
 		Term ->
 			<<Rest:Term/binary, 4>> = Response,
 			{incomplete, G} = F(Rest),
-			{Cmdname, G(end_stream)}
+			G(end_stream)
 	end.
 
 close({vndb, S, _, _, Close}) -> ok = Close(S).
