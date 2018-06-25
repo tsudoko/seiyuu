@@ -11,7 +11,8 @@ get_all(V, Type, Flags, Filter, Options, Items) ->
 	case Response of
 		error ->
 			#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout} = R,
-			timer:sleep(1000 * Timeout),
+			logger:info("throttled (~fs)~n", [Timeout]),
+			timer:sleep(timer:seconds(ceil(Timeout))),
 			get_all(V, Type, Flags, Filter, Options, Items);
 		results ->
 			#{<<"more">> := More, <<"items">> := NewItems} = R,
