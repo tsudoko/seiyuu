@@ -66,13 +66,6 @@ vn_name(VNs, ID, Orig) when Orig == true ->
 	[{N, F}] = [{Name, Fallback} || #{<<"id">> := VID, <<"original">> := Name, <<"title">> := Fallback} <- VNs, VID == ID],
 	case N of null -> F; _ -> N end.
 
-format_table({_, Staff, Chars, Table}, Orig) ->
-	[{staff_name(Staff, S, Orig),
-		[{alias_name(Staff, A, Orig),
-			[char_name(Chars, C, Orig) || C <- Cl]}
-		|| {A, Cl} <- Al]}
-	|| {S, Al} <- Table].
-
 table_html(R, O) ->
 	table_html(R, O, []).
 table_html(R, O, []) ->
