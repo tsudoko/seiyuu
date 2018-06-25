@@ -10,5 +10,12 @@ nyaa(V) ->
 		lists:join(<<",">>, [integer_to_binary(X) || X <- lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([ V || #{<<"voiced">> := V} <- Chars])])]),
 		<<"])">>]),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
-	StaffChars = [{S, [{A, [C || #{<<"id">> := C, <<"voiced">> := Voiced} <- Chars, lists:member(A, [V || #{<<"aid">> := V} <- Voiced]) ]} || [A|_] <- Aliases]} || #{<<"id">> := S, <<"aliases">> := Aliases} <- Staff],
+	StaffChars =
+	[{S, AliasList} ||
+		#{<<"id">> := S, <<"aliases">> := Aliases} <- Staff,
+		AliasList <- [[{A, CharList} ||
+			[A|_] <- Aliases,
+			CharList <- [[C ||
+				#{<<"id">> := C, <<"voiced">> := Voiced} <- Chars,
+				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]]]]],
 	{Staff, Chars, StaffChars}.
