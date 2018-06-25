@@ -2,7 +2,6 @@
 -export([connect/0, connect/3, cmd/2, close/1]).
 -export([login/2, dbstats/1, get/4, get/5]).
 -export([get_all/4, get_all/5]).
--export([nyaa/1]).
 
 % TODO: timeouts? send/2 and recv/2 have them set to infinity
 
