@@ -1,11 +1,7 @@
 -module(seiyuu).
 -export([nyaa/1, start/0, loop/2, query/2]).
 -export([q/3]).
-
-nyaa(V) ->
-	IDs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-	vndb:login(V, [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}]),
-	query(V, IDs).
+-import(seiyuu_util, [bool/1, ht/1]).
 
 start() ->
 	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
@@ -18,10 +14,6 @@ start() ->
 loop(V, Auth) ->
 	receive {query, PID, IDs} -> PID ! seiyuu:query(V, IDs) end,
 	loop(V, Auth).
-
-bool(0) -> false;
-bool(N) when N+1 == N+1 -> true.
-ht(Text) -> re:replace(re:replace(re:replace(Text, "<", "&lt;"), ">", "&gt;"), "&", "&amp;").
 
 query(V, IDs) ->
 	VNs = vndb:get_all(V, vn, [basic], [<<"(id = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
