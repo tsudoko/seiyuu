@@ -75,6 +75,35 @@ format_table({_, Staff, Chars, Table}, Orig) ->
 		|| {A, Cl} <- Al]}
 	|| {S, Al} <- Table].
 
+table_html(R, O) ->
+	table_html(R, O, []).
+table_html(R, O, []) ->
+	table_html(R, O, ["<table cellspacing=0>"]);
+table_html({_, Staff, Chars, [{S, A}|Rest]}, Orig, Table) ->
+	[Amain] = [X || #{<<"main_alias">> := X, <<"id">> := S1} <- Staff, S1 == S],
+	T = table_html_chars({[], Staff, Chars}, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\">", ht(staff_name(Staff, S, Orig)), "</a></td></tr>"]),
+	table_html({[], Staff, Chars, Rest}, Orig, T);
+table_html({_, _, _, []}, _, Table) ->
+	Table ++ ["</table>"].
+table_html_chars(D, Amain, [{A, C}|Rest], Orig, Table) ->
+	T = table_html_chars_(D, Amain, A, C, Orig, Table),
+	table_html_chars(D, Amain, Rest, Orig, T);
+table_html_chars(_, _, [], _, Table) ->
+	Table.
+table_html_chars_(D = {_, Staff, Chars}, Amain, A, [C|Rest], Orig, Table) ->
+	table_html_chars_(D, Amain, A, Rest, Orig, Table ++ [
+		"<tr><td><a href=\"https://vndb.org/c",
+		ht(integer_to_binary(C)), "\">",
+		ht(char_name(Chars, C, Orig)),
+		"</a></td><td>",
+		case Amain == A of
+			true -> "";
+			false -> ht(alias_name(Staff, A, Orig))
+		end,
+		"</td></tr>"]);
+table_html_chars_(_, _, _, [], _, Table) ->
+	Table.
+
 q(S, _, Input) when Input /= "" ->
 	Options = string:slice(Input, 0, 4),
 	Query = string:slice(Input, 4, infinity),
@@ -86,4 +115,6 @@ q(S, _, Input) when Input /= "" ->
 	seiyuu_vndb ! {query, self(), IDs},
 	receive Results -> Results end,
 	
-	mod_esi:deliver(S, ["Content-type: text/plain\r\n\r\n", io_lib:format("~p", [format_table(Results, bool(OrigNames))])]).
+	mod_esi:deliver(S, ["Content-type: text/html\r\n\r\n", "<head><style>tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { min-width: 30em; padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #333; } tr:not(.staff):nth-of-type(2n-1) { background-color: #393939; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, MS Gothic, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
+q(S, _, "") ->
+	mod_esi:deliver(S, ["Content-type: text/html\r\n\r\n", <<"にゃあ"/utf8>>]).
