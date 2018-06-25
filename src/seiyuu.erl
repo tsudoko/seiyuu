@@ -1,5 +1,5 @@
 -module(seiyuu).
--export([nyaa/1, start/0, loop/2, query/2]).
+-export([start/0, loop/2, query/2]).
 -export([q/3]).
 -import(seiyuu_util, [bool/1, ht/1]).
 
