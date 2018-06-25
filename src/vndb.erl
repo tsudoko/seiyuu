@@ -72,24 +72,10 @@ login(V, Args) -> vndb:cmd(V, [<<"login ">>, jsx:encode(Args)]).
 dbstats(V) -> vndb:cmd(V, <<"dbstats">>).
 get(V, Type, Flags, Filters) -> get(V, Type, Flags, Filters, #{}).
 get(V, Type, Flags, Filters, Options) ->
-	{results, R} = vndb:cmd(V, [
+	vndb:cmd(V, [
 		<<"get ">>,
 		atom_to_binary(Type, utf8), <<" ">>,
 		lists:join(<<",">>, lists:map(fun(X) -> atom_to_binary(X, utf8) end, Flags)), <<" ">>,
 		Filters, <<" ">>,
 		jsx:encode(Options)
-	]),
-	R.
-
-get_all(V, Type, Flags, Filters) ->
-	get_all(V, Type, Flags, Filters, #{}).
-get_all(V, Type, Flags, Filter, Options) ->
-	get_all(V, Type, Flags, Filter, Options, []).
-get_all(V, Type, Flags, Filter, Options, Items) ->
-	Page = maps:get(page, Options, 1),
-	R = get(V, Type, Flags, Filter, Options),
-	#{<<"more">> := More, <<"items">> := NewItems} = R,
-	case More of
-		false -> Items ++ NewItems;
-		true -> get_all(V, Type, Flags, Filter, Options#{page => Page+1}, Items ++ NewItems)
-	end.
+	]).
