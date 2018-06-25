@@ -11,18 +11,13 @@ connect() -> connect("api.vndb.org", 19535, true).
 connect(Host, Port, SSL) ->
 	true = jsx:maps_support(),
 	Opts = [binary, {packet, 0}, {active, false}],
-	case SSL of
-		false ->
-			{ok, Sock} = gen_tcp:connect(Host, Port, Opts),
-			{vndb, Sock, fun gen_tcp:send/2, fun gen_tcp:recv/2, fun gen_tcp:close/1};
-		true ->
-			{ok, Sock} = ssl:connect(Host, Port, Opts),
-			{vndb, Sock, fun ssl:send/2, fun ssl:recv/2, fun ssl:close/1}
-	end.
+	TCP = case SSL of false -> gen_tcp; true -> ssl end,
+	{ok, Sock} = TCP:connect(Host, Port, Opts),
+	{vndb, Sock, TCP}.
 
-cmd({vndb, S, Send, Recv, _}, Cmd) ->
-	ok = Send(S, [Cmd, <<4>>]),
-	{ok, R} = Recv(S, 0),
+cmd({vndb, S, TCP}, Cmd) ->
+	ok = TCP:send(S, [Cmd, <<4>>]),
+	{ok, R} = TCP:recv(S, 0),
 
 	% according to https://vndb.org/d11#2 there's no strictly defined format for
 	% responses, but right now they all follow a single convention: name,
@@ -35,7 +30,7 @@ cmd({vndb, S, Send, Recv, _}, Cmd) ->
 		{Space, noterm} ->
 			<<Name:Space/binary, " ", Rest>> = R,
 			{incomplete, F} = jsx:decode(Rest, [stream, return_maps]),
-			{binary_to_atom(Name, utf8), cmd_recvmore(S, Recv, F)};
+			{binary_to_atom(Name, utf8), cmd_recvmore(S, TCP, F)};
 		{Space, Term} ->
 			Restlen = Term - Space - 1,
 			<<Name:Space/binary, " ", Rest:Restlen/binary, 4>> = R,
@@ -57,19 +52,19 @@ cmd_term(R) ->
 		_Else -> noterm
 	end.
 
-cmd_recvmore(S, Recv, F) ->
-	{ok, Response} = Recv(S, 0),
+cmd_recvmore(S, TCP, F) ->
+	{ok, Response} = TCP:recv(S, 0),
 	case cmd_term(Response) of
 		noterm ->
 			{incomplete, G} = F(Response),
-			cmd_recvmore(S, Recv, G);
+			cmd_recvmore(S, TCP, G);
 		Term ->
 			<<Rest:Term/binary, 4>> = Response,
 			{incomplete, G} = F(Rest),
 			G(end_stream)
 	end.
 
-close({vndb, S, _, _, Close}) -> ok = Close(S).
+close({vndb, S, TCP}) -> ok = TCP:close(S).
 
 % --- wrapped commands
 
