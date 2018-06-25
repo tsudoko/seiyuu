@@ -13,7 +13,7 @@ nyaa(V) ->
 		))))), <<"])">>]),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
 	StaffChars =
-	lists:map(fun(S) -> {maps:get(<<"id">>, S), 
+	lists:map(fun(S) -> {maps:get(<<"id">>, S),
 		lists:map(fun([AID|_]) -> {AID,
 			lists:map(fun(X) -> {CID, _} = X, CID end,
 				lists:filter(fun({CID, V}) -> lists:member(AID, V) end,
