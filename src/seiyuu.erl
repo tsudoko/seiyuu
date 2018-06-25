@@ -16,9 +16,9 @@ loop(V, Auth) ->
 	loop(V, Auth).
 
 query(V, IDs) ->
-	VNs = vndb:get_all(V, vn, [basic], [<<"(id = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
-	Chars = vndb:get_all(V, character, [basic, voiced, vns], [<<"(vn = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
-	Staff = vndb:get_all(V, staff, [basic, aliases], [<<"(id = [">>,
+	VNs = vndb_util:get_all(V, vn, [basic], [<<"(id = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
+	Chars = vndb_util:get_all(V, character, [basic, voiced, vns], [<<"(vn = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
+	Staff = vndb_util:get_all(V, staff, [basic, aliases], [<<"(id = [">>,
 		lists:join(<<",">>, [integer_to_binary(X) || X <- lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([ V || #{<<"voiced">> := V} <- Chars])])]),
 		<<"])">>]),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
