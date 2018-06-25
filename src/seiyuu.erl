@@ -38,9 +38,11 @@ query(V, IDs) ->
 				#{<<"id">> := C, <<"voiced">> := Voiced} <- Chars,
 				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
 			CharList /= []]]],
-	{[], Staff, Chars, StaffChars}.
+	{VNs, Staff, Chars, StaffChars}.
 
 
+char_vns(Chars, ID) ->
+	[V || #{<<"vns">> := VNs, <<"id">> := CID} <- Chars, CID == ID, [V|_] <- VNs].
 char_name(Chars, ID, Orig) when Orig == false ->
 	[N] = [Name || #{<<"id">> := CID, <<"name">> := Name} <- Chars, CID == ID],
 	N;
@@ -59,21 +61,26 @@ staff_name(Staff, ID, Orig) when Orig == false ->
 staff_name(Staff, ID, Orig) when Orig == true ->
 	[{N, F}] = [{Name, Fallback} || #{<<"id">> := SID, <<"original">> := Name, <<"name">> := Fallback} <- Staff, SID == ID],
 	case N of null -> F; _ -> N end.
-vn_name(VNs, ID, Orig) when Orig == false ->
+vn_title(VNs, ID, Orig) when Orig == false ->
 	[N] = [Name || #{<<"id">> := VID, <<"title">> := Name} <- VNs, VID == ID],
 	N;
-vn_name(VNs, ID, Orig) when Orig == true ->
+vn_title(VNs, ID, Orig) when Orig == true ->
 	[{N, F}] = [{Name, Fallback} || #{<<"id">> := VID, <<"original">> := Name, <<"title">> := Fallback} <- VNs, VID == ID],
 	case N of null -> F; _ -> N end.
+vn_incache(VNs, ID) ->
+	case [VID || #{<<"id">> := VID} <- VNs, VID == ID] of
+		[] -> false;
+		_ -> true
+	end.
 
 table_html(R, O) ->
 	table_html(R, O, []).
 table_html(R, O, []) ->
 	table_html(R, O, ["<table cellspacing=0>"]);
-table_html({_, Staff, Chars, [{S, A}|Rest]}, Orig, Table) ->
+table_html({VNs, Staff, Chars, [{S, A}|Rest]}, Orig, Table) ->
 	[Amain] = [X || #{<<"main_alias">> := X, <<"id">> := S1} <- Staff, S1 == S],
-	T = table_html_chars({[], Staff, Chars}, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\">", ht(staff_name(Staff, S, Orig)), "</a></td></tr>"]),
-	table_html({[], Staff, Chars, Rest}, Orig, T);
+	T = table_html_chars({VNs, Staff, Chars}, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\">", ht(staff_name(Staff, S, Orig)), "</a></td></tr>"]),
+	table_html({VNs, Staff, Chars, Rest}, Orig, T);
 table_html({_, _, _, []}, _, Table) ->
 	Table ++ ["</table>"].
 table_html_chars(D, Amain, [{A, C}|Rest], Orig, Table) ->
@@ -81,7 +88,7 @@ table_html_chars(D, Amain, [{A, C}|Rest], Orig, Table) ->
 	table_html_chars(D, Amain, Rest, Orig, T);
 table_html_chars(_, _, [], _, Table) ->
 	Table.
-table_html_chars_(D = {_, Staff, Chars}, Amain, A, [C|Rest], Orig, Table) ->
+table_html_chars_(D = {VNs, Staff, Chars}, Amain, A, [C|Rest], Orig, Table) ->
 	table_html_chars_(D, Amain, A, Rest, Orig, Table ++ [
 		"<tr><td><a href=\"https://vndb.org/c",
 		ht(integer_to_binary(C)), "\">",
@@ -91,6 +98,8 @@ table_html_chars_(D = {_, Staff, Chars}, Amain, A, [C|Rest], Orig, Table) ->
 			true -> "";
 			false -> ht(alias_name(Staff, A, Orig))
 		end,
+		"</td><td>",
+		lists:join(", ", lists:usort([["<a href=\"https://vndb.org/v", ht(integer_to_binary(X)), "\">", ht(vn_title(VNs, X, Orig)), "</a>"] || X <- char_vns(Chars, C), vn_incache(VNs, X)])),
 		"</td></tr>"]);
 table_html_chars_(_, _, _, [], _, Table) ->
 	Table.
@@ -106,6 +115,6 @@ q(S, _, Input) when Input /= "" ->
 	seiyuu_vndb ! {query, self(), IDs},
 	receive Results -> Results end,
 	
-	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { min-width: 30em; padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #333; } tr:not(.staff):nth-of-type(2n-1) { background-color: #393939; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, MS Gothic, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
 q(S, _, "") ->
 	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", <<"にゃあ"/utf8>>]).
