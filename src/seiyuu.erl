@@ -45,28 +45,26 @@ char_name(Chars, ID, Orig) when Orig == false ->
 	[N] = [Name || #{<<"id">> := CID, <<"name">> := Name} <- Chars, CID == ID],
 	N;
 char_name(Chars, ID, Orig) when Orig == true ->
-	[N] = [Name || #{<<"id">> := CID, <<"name">> := Fallback} = C <- Chars, Name = map:get(<<"original">>, C, Fallback), CID == ID],
-	N.
+	[{N, F}] = [{Name, Fallback} || #{<<"id">> := CID, <<"original">> := Name, <<"name">> := Fallback} <- Chars, CID == ID],
+	case N of null -> F; _ -> N end.
 alias_name(Staff, ID, Orig) when Orig == false ->
-	%io:format("~p~n", [Staff]),
 	[N] = [Name || #{<<"aliases">> := Aliases} <- Staff, [AID, Name, _] <- Aliases, AID == ID],
 	N;
-% TODO: the 3rd element might be null
 alias_name(Staff, ID, Orig) when Orig == true ->
-	[N] = [Name || #{<<"aliases">> := Aliases} <- Staff, [AID, _, Name] <- Aliases, AID == ID],
-	N.
+	[{N, F}] = [{Name, Fallback} || #{<<"aliases">> := Aliases} <- Staff, [AID, Fallback, Name] <- Aliases, AID == ID],
+	case N of null -> F; _ -> N end.
 staff_name(Staff, ID, Orig) when Orig == false ->
 	[N] = [Name || #{<<"id">> := SID, <<"name">> := Name} <- Staff, SID == ID],
 	N;
 staff_name(Staff, ID, Orig) when Orig == true ->
-	[N] = [Name || #{<<"id">> := SID, <<"name">> := Fallback} = S <- Staff, Name = map:get(<<"original">>, S, Fallback), SID == ID],
-	N.
+	[{N, F}] = [{Name, Fallback} || #{<<"id">> := SID, <<"original">> := Name, <<"name">> := Fallback} <- Staff, SID == ID],
+	case N of null -> F; _ -> N end.
 vn_name(VNs, ID, Orig) when Orig == false ->
 	[N] = [Name || #{<<"id">> := VID, <<"title">> := Name} <- VNs, VID == ID],
 	N;
 vn_name(VNs, ID, Orig) when Orig == true ->
-	[N] = [Name || #{<<"id">> := VID, <<"title">> := Fallback} = V <- VNs, Name = map:get(<<"original">>, V, Fallback), VID == ID],
-	N.
+	[{N, F}] = [{Name, Fallback} || #{<<"id">> := VID, <<"original">> := Name, <<"title">> := Fallback} <- VNs, VID == ID],
+	case N of null -> F; _ -> N end.
 
 format_table({_, Staff, Chars, Table}, Orig) ->
 	[{staff_name(Staff, S, Orig),
@@ -115,6 +113,6 @@ q(S, _, Input) when Input /= "" ->
 	seiyuu_vndb ! {query, self(), IDs},
 	receive Results -> Results end,
 	
-	mod_esi:deliver(S, ["Content-type: text/html\r\n\r\n", "<head><style>tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { min-width: 30em; padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #333; } tr:not(.staff):nth-of-type(2n-1) { background-color: #393939; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, MS Gothic, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { min-width: 30em; padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #333; } tr:not(.staff):nth-of-type(2n-1) { background-color: #393939; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, MS Gothic, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
 q(S, _, "") ->
-	mod_esi:deliver(S, ["Content-type: text/html\r\n\r\n", <<"にゃあ"/utf8>>]).
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", <<"にゃあ"/utf8>>]).
