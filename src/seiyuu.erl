@@ -17,5 +17,6 @@ nyaa(V) ->
 			[A|_] <- Aliases,
 			CharList <- [[C ||
 				#{<<"id">> := C, <<"voiced">> := Voiced} <- Chars,
-				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]]]]],
+				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
+			CharList /= []]]],
 	{Staff, Chars, StaffChars}.
