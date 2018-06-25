@@ -1,6 +1,7 @@
 -module(vndb).
 -export([connect/0, connect/3, cmd/2, close/1]).
 -export([login/2, dbstats/1, get/4, get/5]).
+-export([get_all/4, get_all/5]).
 -export([nyaa/1]).
 
 % TODO: timeouts? send/2 and recv/2 have them set to infinity
@@ -85,3 +86,16 @@ get(V, Type, Flags, Filters, Options) ->
 		jsx:encode(Options)
 	]),
 	R.
+
+get_all(V, Type, Flags, Filters) ->
+	get_all(V, Type, Flags, Filters, #{}).
+get_all(V, Type, Flags, Filter, Options) ->
+	get_all(V, Type, Flags, Filter, Options, []).
+get_all(V, Type, Flags, Filter, Options, Items) ->
+	Page = maps:get(page, Options, 1),
+	R = get(V, Type, Flags, Filter, Options),
+	#{<<"more">> := More, <<"items">> := NewItems} = R,
+	case More of
+		false -> Items ++ NewItems;
+		true -> get_all(V, Type, Flags, Filter, Options#{page => Page+1}, Items ++ NewItems)
+	end.
