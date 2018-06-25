@@ -7,10 +7,10 @@ get_all(V, Type, Flags, Filter, Options) ->
 	get_all(V, Type, Flags, Filter, Options, []).
 get_all(V, Type, Flags, Filter, Options, Items) ->
 	Page = maps:get(page, Options, 1),
-	{Response, R} = get(V, Type, Flags, Filter, Options),
+	{Response, R} = vndb:get(V, Type, Flags, Filter, Options),
 	case Response of
 		error ->
-			#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout},
+			#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout} = R,
 			timer:sleep(1000 * Timeout),
 			get_all(V, Type, Flags, Filter, Options, Items);
 		results ->
