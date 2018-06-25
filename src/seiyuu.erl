@@ -21,6 +21,7 @@ loop(V, Auth) ->
 
 bool(0) -> false;
 bool(N) when N+1 == N+1 -> true.
+ht(Text) -> re:replace(re:replace(re:replace(Text, "<", "&lt;"), ">", "&gt;"), "&", "&amp;").
 
 query(V, IDs) ->
 	VNs = vndb:get_all(V, vn, [basic], [<<"(id = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
