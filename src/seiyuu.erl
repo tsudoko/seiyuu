@@ -1,7 +1,7 @@
 -module(seiyuu).
 -export([start/0, loop/3, query/3, vnlist/3]).
 -export([q/3]).
--import(seiyuu_util, [bool/1, ht/1]).
+-import(seiyuu_util, [bool/1, ht/1, uri_decode/1]).
 
 start() ->
 	% maybe TODO: lazy login
@@ -150,18 +150,23 @@ table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table)
 table_html_chars_(_, _, _, _, [], _, Table) ->
 	Table.
 
+query_mode(M) when M > 255 -> {true, query_userlist(M-65248)};
+query_mode(M) -> {false, query_userlist(M)}.
+query_userlist(117) -> true;
+query_userlist(118) -> false.
+query_ids(false, Query) ->
+	[list_to_integer(X) || X <- string:split(Query, ",", all)];
+query_ids(true, Query) ->
+	seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)},
+	receive {vnlist, IDs} -> IDs end.
 q(S, _, Input) when Input /= "" ->
-	Options = string:slice(Input, 0, 4),
-	Query = string:slice(Input, 4, infinity),
-	<<UserList:1, OrigNames:1, _/bits>> = base64:decode(Options),
-	IDs = case bool(UserList) of
-		true -> seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)}, receive {vnlist, _IDs} -> _IDs end;
-		false -> [list_to_integer(X) || X <- string:split(Query, ",", all)]
-	end,
+	[Mode|Query] = uri_decode(Input),
+	{OrigNames, UserList} = query_mode(Mode),
+	IDs = query_ids(UserList, Query),
 	seiyuu_vndb ! {query, self(), IDs},
 	receive {query, Results} -> Results end,
 
-	Response = ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html({Results, IDs}, bool(OrigNames))],
+	Response = ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html({Results, IDs}, OrigNames)],
 	% ugly workaround, for some reason lists:flatten/1 (which is used
 	% internally by mod_esi:deliver/2) fails on certain large iolists,
 	% but iolist_to_binary/1 doesn't
