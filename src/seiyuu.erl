@@ -11,17 +11,30 @@ start() ->
 	register(seiyuu_vndb, PID),
 	ok.
 
+% would be less hacky to just recreate an API server locally probably,
+% but that's too much work
+%
+% i.e. right now only exact requests are cached, so if you do "get
+% character (vn = 1)" and it returns characters 100, 101, 102, "get
+% character (id = [100,101,102])" won't be cached even though the
+% data is all there
+%
+% this is not an issue as long as we search by the same field in
+% every request for a given data type, though, and that's what we
+% do currently
 loop(V, Auth, Caches) ->
 	receive
-		{cacheget, PID, Type, IDs} ->
-			Cache = maps:get(Type, Caches, #{}),
+		{cacheget, PID, Type, IDParam, IDs} ->
+			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
+			#{IDParam := Cache} = CacheDir,
 			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Cache)],
 			Data = maps:with(IDs, Cache),
 			PID ! {cacheget, Uncached, Data},
 			loop(V, Auth, Caches);
-		{cacheput, Type, NewData} ->
-			Cache = maps:get(Type, Caches, #{}),
-			loop(V, Auth, Caches#{Type => maps:merge(Cache, NewData)});
+		{cacheput, Type, IDParam, NewData} ->
+			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
+			#{IDParam := Cache} = CacheDir,
+			loop(V, Auth, Caches#{Type => #{IDParam => maps:merge(Cache, NewData)}});
 		{query, PID, IDs} ->
 			spawn(seiyuu, query, [V, IDs, PID]),
 			loop(V, Auth, Caches)
@@ -29,7 +42,7 @@ loop(V, Auth, Caches) ->
 
 % this function assumes Flags are always the same for a given type
 get(V, Type, Flags, IDParam, IDs) ->
-	seiyuu_vndb ! {cacheget, self(), Type, IDs},
+	seiyuu_vndb ! {cacheget, self(), Type, IDParam, IDs},
 	receive {cacheget, Uncached, Cached} -> ok end,
 	maps:merge(Cached, request_uncached(V, Type, Flags, IDParam, Uncached)).
 
@@ -37,18 +50,21 @@ request_uncached(_, _, _, _, []) ->
 	#{};
 request_uncached(V, Type, Flags, IDParam, IDs) ->
 	R = vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"]),
-	% FIXME: doesn't work with character cache because we use "vn = " instead of "id = "
-	RMap = maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]),
-	seiyuu_vndb ! {cacheput, Type, RMap},
+	RMap = response_to_map_(Type, IDParam, IDs, R),
+	seiyuu_vndb ! {cacheput, Type, IDParam, RMap},
 	RMap.
+response_to_map_(_, "id", _, R) ->
+	maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]);
+response_to_map_(character, "vn", IDs, R) ->
+	maps:from_list([{VNID, [Data || #{<<"vns">> := VNs} = Data <- R, [ID|_] <- VNs, ID == VNID]} || VNID <- IDs]).
 
 query(V, IDs, PID) ->
 	% TODO: sort by vn
 	VNs = get(V, vn, [basic], "id", IDs),
-	Chars = get(V, character, [basic, voiced, vns], "vn", IDs),
+	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(get(V, character, [basic, voiced, vns], "vn", IDs)))]),
 	Staff = get(V, staff, [basic, aliases], "id",
 		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- maps:values(Chars)])])),
-%	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
+	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
 	StaffChars =
 	[{S, AliasList} ||
 		#{<<"id">> := S, <<"aliases">> := Aliases} <- maps:values(Staff),
