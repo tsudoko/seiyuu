@@ -81,8 +81,7 @@ query(V, IDs, PID) ->
 				#{<<"id">> := C, <<"voiced">> := Voiced} <- maps:values(Chars),
 				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
 			CharList /= []]]],
-	% TODO: the IDs parameter is completely pointless here, get rid of it
-	PID ! {query, {VNs, Staff, Chars, StaffChars, IDs}}.
+	PID ! {query, {VNs, Staff, Chars, StaffChars}}.
 
 char_vns(Chars, ID) ->
 	#{ID := #{<<"vns">> := VNs}} = Chars,
@@ -110,11 +109,11 @@ table_html(R, O) ->
 	table_html(R, O, []).
 table_html(R, O, []) ->
 	table_html(R, O, ["<table cellspacing=0>"]);
-table_html({VNs, Staff, Chars, [{S, A}|Rest], IDs}, Orig, Table) ->
+table_html({{VNs, Staff, Chars, [{S, A}|Rest]}, IDs}, Orig, Table) ->
 	#{S := #{<<"main_alias">> := Amain}} = Staff,
 	T = table_html_chars({VNs, Staff, Chars}, IDs, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\">", ht(data_name(Staff, S, Orig)), "</a></td></tr>"]),
-	table_html({VNs, Staff, Chars, Rest, IDs}, Orig, T);
-table_html({_, _, _, [], _}, _, Table) ->
+	table_html({{VNs, Staff, Chars, Rest}, IDs}, Orig, T);
+table_html({{_, _, _, []}, _}, _, Table) ->
 	Table ++ ["</table>"].
 table_html_chars(D, IDs, Amain, [{A, C}|Rest], Orig, Table) ->
 	T = table_html_chars_(D, IDs, Amain, A, C, Orig, Table),
@@ -148,7 +147,7 @@ q(S, _, Input) when Input /= "" ->
 	seiyuu_vndb ! {query, self(), IDs},
 	receive {query, Results} -> Results end,
 
-	Response = ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))],
+	Response = ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html({Results, IDs}, bool(OrigNames))],
 	% ugly workaround, for some reason lists:flatten/1 (which is used
 	% internally by mod_esi:deliver/2) fails on certain large iolists,
 	% but iolist_to_binary/1 doesn't
