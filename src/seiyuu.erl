@@ -4,6 +4,7 @@
 -import(seiyuu_util, [bool/1, ht/1]).
 
 start() ->
+	% maybe TODO: lazy login
 	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
 	V = vndb:connect(),
 	vndb:login(V, Auth),
@@ -43,6 +44,7 @@ loop(V, Auth, Caches) ->
 		{query, PID, IDs} ->
 			spawn(seiyuu, query, [V, IDs, PID]),
 			loop(V, Auth, Caches)
+		% TODO: crash on unknown messages
 	end.
 
 % this function assumes Flags are always the same for a given type
