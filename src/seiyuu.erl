@@ -123,7 +123,7 @@ table_html_chars(_, _, _, [], _, Table) ->
 	Table.
 table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table) ->
 	table_html_chars_(D, IDs, Amain, A, Rest, Orig, Table ++ [
-		"<tr><td><a href=\"https://vndb.org/c",
+		<<"<tr><td><a href=\"https://vndb.org/c">>,
 		ht(integer_to_binary(C)), "\">",
 		ht(data_name(Chars, C, Orig)),
 		"</a></td><td>",
@@ -147,7 +147,11 @@ q(S, _, Input) when Input /= "" ->
 	end,
 	seiyuu_vndb ! {query, self(), IDs},
 	receive {query, Results} -> Results end,
-	
-	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
+
+	Response = ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))],
+	% ugly workaround, for some reason lists:flatten/1 (which is used
+	% internally by mod_esi:deliver/2) fails on certain large iolists,
+	% but iolist_to_binary/1 doesn't
+	mod_esi:deliver(S, binary_to_list(iolist_to_binary(Response)));
 q(S, _, "") ->
 	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", <<"にゃあ"/utf8>>]).
