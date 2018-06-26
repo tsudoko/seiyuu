@@ -16,7 +16,7 @@ start() ->
 %
 % i.e. right now only exact requests are cached, so if you do "get
 % character (vn = 1)" and it returns characters 100, 101, 102, "get
-% character (id = [100,101,102])" won't be cached even though the
+% character (id = [100,101,102])" won't use the cache even though the
 % data is all there
 %
 % this is not an issue as long as we search by the same field in
@@ -24,6 +24,11 @@ start() ->
 % do currently
 loop(V, Auth, Caches) ->
 	receive
+		{cacheload, NewCaches} ->
+			loop(V, Auth, NewCaches);
+		{cachedump, PID} ->
+			PID ! {cachedump, Caches},
+			loop(V, Auth, Caches);
 		{cacheget, PID, Type, IDParam, IDs} ->
 			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
 			#{IDParam := Cache} = CacheDir,
