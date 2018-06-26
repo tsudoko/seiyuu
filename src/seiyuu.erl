@@ -56,7 +56,10 @@ get(V, Type, Flags, IDParam, IDs) ->
 request_uncached(_, _, _, _, []) ->
 	#{};
 request_uncached(V, Type, Flags, IDParam, IDs) ->
-	R = vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"]),
+	R = case IDs of
+		[ID] -> vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
+		_ ->    vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"])
+	end,
 	RMap = response_to_map_(Type, IDParam, IDs, R),
 	seiyuu_vndb ! {cacheput, Type, IDParam, RMap},
 	RMap.
