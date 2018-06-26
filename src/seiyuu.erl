@@ -1,5 +1,5 @@
 -module(seiyuu).
--export([start/0, loop/3, query/3]).
+-export([start/0, loop/3, query/3, vnlist/3]).
 -export([q/3]).
 -import(seiyuu_util, [bool/1, ht/1]).
 
@@ -41,8 +41,12 @@ loop(V, Auth, Caches) ->
 			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
 			#{IDParam := Cache} = CacheDir,
 			loop(V, Auth, Caches#{Type => #{IDParam => maps:merge(Cache, NewData)}});
+		% --- XXX ---
 		{query, PID, IDs} ->
 			spawn(seiyuu, query, [V, IDs, PID]),
+			loop(V, Auth, Caches);
+		{vnlist, PID, UID} ->
+			spawn(seiyuu, vnlist, [V, PID, UID]),
 			loop(V, Auth, Caches)
 		% TODO: crash on unknown messages
 	end.
@@ -65,9 +69,14 @@ request_uncached(V, Type, Flags, IDParam, IDs) ->
 	RMap.
 response_to_map_(_, "id", _, R) ->
 	maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]);
+response_to_map_(vnlist, "uid", [ID], R) ->
+	#{ID => R};
 response_to_map_(character, "vn", IDs, R) ->
 	maps:from_list([{VNID, [Data || #{<<"vns">> := VNs} = Data <- R, [ID|_] <- VNs, ID == VNID]} || VNID <- IDs]).
 
+vnlist(V, PID, UID) ->
+	#{UID := List} = get(V, vnlist, [basic], "uid", [UID]),
+	PID ! {vnlist, [ID || #{<<"vn">> := ID} <- List]}.
 query(V, IDs, PID) ->
 	% TODO: sort by vn
 	VNs = get(V, vn, [basic], "id", IDs),
@@ -144,7 +153,7 @@ q(S, _, Input) when Input /= "" ->
 	Query = string:slice(Input, 4, infinity),
 	<<UserList:1, OrigNames:1, _/bits>> = base64:decode(Options),
 	IDs = case bool(UserList) of
-		% true -> TODO;
+		true -> seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)}, receive {vnlist, _IDs} -> _IDs end;
 		false -> [list_to_integer(X) || X <- string:split(Query, ",", all)]
 	end,
 	seiyuu_vndb ! {query, self(), IDs},
