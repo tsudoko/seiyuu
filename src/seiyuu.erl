@@ -14,13 +14,13 @@ start() ->
 loop(V, Auth, Caches) ->
 	receive
 		{cacheget, PID, Type, IDs} ->
-			#{Type := Cache} = Caches,
+			Cache = maps:get(Type, Caches, #{}),
 			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Cache)],
 			Data = maps:with(IDs, Cache),
 			PID ! {cacheget, Uncached, Data},
 			loop(V, Auth, Caches);
 		{cacheput, Type, NewData} ->
-			#{Type := Cache} = Caches,
+			Cache = maps:get(Type, Caches, #{}),
 			loop(V, Auth, Caches#{Type => maps:merge(Cache, NewData)});
 		{query, PID, IDs} ->
 			spawn(seiyuu, query, [V, IDs, PID]),
