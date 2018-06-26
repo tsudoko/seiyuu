@@ -1,5 +1,5 @@
 -module(seiyuu).
--export([start/0, loop/3, query/2]).
+-export([start/0, loop/3, query/3]).
 -export([q/3]).
 -import(seiyuu_util, [bool/1, ht/1]).
 
@@ -9,7 +9,7 @@ start() ->
 	vndb:login(V, Auth),
 	PID = spawn(seiyuu, loop, [V, Auth, #{}]),
 	register(seiyuu_vndb, PID),
-	PID.
+	ok.
 
 loop(V, Auth, Caches) ->
 	receive
@@ -23,7 +23,7 @@ loop(V, Auth, Caches) ->
 			#{Type := Cache} = Caches,
 			loop(V, Auth, Caches#{Type => maps:merge(Cache, NewData)});
 		{query, PID, IDs} ->
-			PID ! {query, seiyuu:query(V, IDs)},
+			spawn(seiyuu, query, [V, IDs, PID]),
 			loop(V, Auth, Caches)
 	end.
 
