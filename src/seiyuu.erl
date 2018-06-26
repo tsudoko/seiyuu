@@ -59,6 +59,8 @@ get(V, Type, Flags, IDParam, IDs) ->
 
 request_uncached(_, _, _, _, []) ->
 	#{};
+request_uncached(V, Type = vnlist, Flags, IDParam = "uid", [ID]) ->
+	response_to_map_(Type, IDParam, [ID], vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]));
 request_uncached(V, Type, Flags, IDParam, IDs) ->
 	R = case IDs of
 		[ID] -> vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
