@@ -37,6 +37,7 @@ request_uncached(_, _, _, _, []) ->
 	#{};
 request_uncached(V, Type, Flags, IDParam, IDs) ->
 	R = vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"]),
+	% FIXME: doesn't work with character cache because we use "vn = " instead of "id = "
 	RMap = maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]),
 	seiyuu_vndb ! {cacheput, Type, RMap},
 	RMap.
