@@ -43,7 +43,7 @@ loop(V, Auth, Caches) ->
 			loop(V, Auth, Caches#{Type => #{IDParam => maps:merge(Cache, NewData)}});
 		% --- XXX ---
 		{query, PID, IDs} ->
-			spawn(seiyuu, query, [V, IDs, PID]),
+			spawn(seiyuu, query, [V, PID, IDs]),
 			loop(V, Auth, Caches);
 		{vnlist, PID, UID} ->
 			spawn(seiyuu, vnlist, [V, PID, UID]),
@@ -79,7 +79,7 @@ response_to_map_(character, "vn", IDs, R) ->
 vnlist(V, PID, UID) ->
 	#{UID := List} = get(V, vnlist, [basic], "uid", [UID]),
 	PID ! {vnlist, [ID || #{<<"vn">> := ID} <- List]}.
-query(V, IDs, PID) ->
+query(V, PID, IDs) ->
 	% TODO: sort by vn
 	VNs = get(V, vn, [basic], "id", IDs),
 	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(get(V, character, [basic, voiced, vns], "vn", IDs)))]),
