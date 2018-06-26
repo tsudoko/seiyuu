@@ -1,5 +1,5 @@
 -module(seiyuu).
--export([start/0, loop/2, query/2]).
+-export([start/0, loop/3, query/2]).
 -export([q/3]).
 -import(seiyuu_util, [bool/1, ht/1]).
 
@@ -7,13 +7,34 @@ start() ->
 	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
 	V = vndb:connect(),
 	vndb:login(V, Auth),
-	PID = spawn(seiyuu, loop, [V, Auth]),
+	PID = spawn(seiyuu, loop, [V, Auth, #{}]),
 	register(seiyuu_vndb, PID),
 	PID.
 
-loop(V, Auth) ->
-	receive {query, PID, IDs} -> PID ! seiyuu:query(V, IDs) end,
-	loop(V, Auth).
+loop(V, Auth, Caches) ->
+	receive
+		{cacheget, PID, Type, IDs} ->
+			#{Type := Cache} = Caches,
+			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Cache)],
+			Data = maps:with(IDs, Cache),
+			PID ! {cacheget, Uncached, Data},
+			loop(V, Auth, Caches);
+		{cacheput, Type, NewData} ->
+			#{Type := Cache} = Caches,
+			loop(V, Auth, Caches#{Type => maps:merge(Cache, NewData)});
+		{query, PID, IDs} ->
+			PID ! {query, seiyuu:query(V, IDs)},
+			loop(V, Auth, Caches)
+	end.
+
+% this function assumes Flags are always the same for a given type
+get(V, Type, Flags, IDParam, IDs) ->
+	seiyuu_vndb ! {cacheget, self(), Type, IDs},
+	receive {cacheget, Uncached, Cached} -> ok end,
+	R = vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- Uncached]), "])"]),
+	RMap = maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]),
+	seiyuu_vndb ! {cacheput, Type, RMap},
+	maps:merge(Cached, RMap).
 
 query(V, IDs) ->
 	VNs = vndb_util:get_all(V, vn, [basic], [<<"(id = [">>, lists:join(<<",">>, [integer_to_binary(X) || X <- IDs]), <<"])">>]),
@@ -101,7 +122,7 @@ q(S, _, Input) when Input /= "" ->
 		false -> [list_to_integer(X) || X <- string:split(Query, ",", all)]
 	end,
 	seiyuu_vndb ! {query, self(), IDs},
-	receive Results -> Results end,
+	receive {query, Results} -> Results end,
 	
 	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", "<head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>", table_html(Results, bool(OrigNames))]);
 q(S, _, "") ->
