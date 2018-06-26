@@ -150,18 +150,18 @@ table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table)
 table_html_chars_(_, _, _, _, [], _, Table) ->
 	Table.
 
-query_mode(M) when M > 255 -> {true, query_userlist(M-65248)};
-query_mode(M) -> {false, query_userlist(M)}.
-query_userlist(117) -> true;
-query_userlist(118) -> false.
 query_ids(false, Query) ->
 	[list_to_integer(X) || X <- string:split(Query, ",", all)];
 query_ids(true, Query) ->
 	seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)},
 	receive {vnlist, IDs} -> IDs end.
+
 q(S, _, Input) when Input /= "" ->
 	[Mode|Query] = uri_decode(Input),
-	{OrigNames, UserList} = query_mode(Mode),
+	OrigNames = Mode > 255,
+	UserList = OrigNames and (Mode - 65248 == 117) orelse Mode == 117,
+	true = UserList or (Mode - 65248 == 118) orelse Mode == 118,
+
 	IDs = query_ids(UserList, Query),
 	seiyuu_vndb ! {query, self(), IDs},
 	receive {query, Results} -> Results end,
