@@ -78,7 +78,7 @@ table_html(R, O, []) ->
 	table_html(R, O, ["<table cellspacing=0>"]);
 table_html({{VNs, Staff, Chars, [{S, A}|Rest]}, IDs}, Orig, Table) ->
 	#{S := #{<<"main_alias">> := Amain}} = Staff,
-	T = table_html_chars({VNs, Staff, Chars}, IDs, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\">", ht(data_name(Staff, S, Orig)), "</a></td></tr>"]),
+	T = table_html_chars({VNs, Staff, Chars}, IDs, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\" title=\"alt here\">", ht(data_name(Staff, S, Orig)), "</a></td></tr>"]),
 	table_html({{VNs, Staff, Chars, Rest}, IDs}, Orig, T);
 table_html({{_, _, _, []}, _}, _, Table) ->
 	Table ++ ["</table>"].
@@ -90,7 +90,7 @@ table_html_chars(_, _, _, [], _, Table) ->
 table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table) ->
 	table_html_chars_(D, IDs, Amain, A, Rest, Orig, Table ++ [
 		<<"<tr><td><a href=\"https://vndb.org/c">>,
-		ht(integer_to_binary(C)), "\">",
+		ht(integer_to_binary(C)), "\" title=\"alt here\">",
 		ht(data_name(Chars, C, Orig)),
 		"</a></td><td>",
 		case Amain == A of
@@ -98,7 +98,7 @@ table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table)
 			false -> ht(alias_name(Staff, A, Orig))
 		end,
 		"</td><td>",
-		lists:join(", ", lists:usort([["<a href=\"https://vndb.org/v", ht(integer_to_binary(X)), "\">", ht(data_title(VNs, X, Orig)), "</a>"] || X <- char_vns(Chars, C), lists:member(X, IDs)])),
+		lists:join(", ", lists:usort([["<a href=\"https://vndb.org/v", ht(integer_to_binary(X)), "\" title=\"alt here\">", ht(data_title(VNs, X, Orig)), "</a>"] || X <- char_vns(Chars, C), lists:member(X, IDs)])),
 		"</td></tr>"]);
 table_html_chars_(_, _, _, _, [], _, Table) ->
 	Table.
