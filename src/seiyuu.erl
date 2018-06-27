@@ -1,9 +1,9 @@
 -module(seiyuu).
 -export([start/0, loop/2]).
--export([q/3]).
+-export([index/3, main/3, get/3, q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1]).
 
--define(BOILERPLATE, "<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd } iframe { width: 100%; height: 100%; border: none; }</style></head><body>").
+-define(BOILERPLATE, "<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } #mainsearch { display: inline; float: right; } h1 { margin: 0; padding: 0.1em 0.5em; background-color: #050505; } body { margin: 0; background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd } iframe { width: 100%; height: 80vh; border: none; }</style></head><body>").
 
 start() ->
 	% maybe TODO: lazy login
@@ -18,6 +18,8 @@ start() ->
 loop(V, Auth) ->
 	receive
 		{query, PID, IDs} ->
+			% TODO: don't fail completely when vndb isn't reachable,
+			% just return some error with cached results
 			PID ! {query, query(V, IDs)};
 		{vnlist, PID, UID} ->
 			PID ! {vnlist, vnlist(V, UID)};
@@ -106,10 +108,29 @@ query_ids(true, Query) ->
 	seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)},
 	receive {vnlist, IDs} -> IDs end.
 
-q(S, _, "") ->
-	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE, "<a target=main href=_main>", <<"にゃあ"/utf8>>, "</a><div><iframe name=main src=_main /></div>"]);
-q(S, _, "_main") ->
-	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE, "<center>", "stuff here"]);
+index(S, _, _) ->
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE,
+	"<h1><a target=main href=main>", <<"声優"/utf8>>, "</a>",
+	"<form target=main id=mainsearch action=get method=GET>",
+		"<input name=ids />",
+		"<select name=orig>",
+			"<option value=0>Romanized names</option>",
+			"<option value=1>Original names</option>",
+		"</select><select name=user>",
+			"<option value=0>VNs</option>",
+			"<option value=1>User</option>",
+		"</select><input type=submit /></form>",
+	"</h1><div><iframe name=main src=\"about:blank\" /></div>"]).
+main(S, _, _) ->
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n",
+		?BOILERPLATE ]).
+get(S, _, Input) ->
+	Q = httpd:parse_query(Input),
+	IDs = proplists:get_value("ids", Q),
+	Orig = list_to_integer(proplists:get_value("orig", Q, 1)) * 65248,
+	User = list_to_integer(proplists:get_value("user", Q, 0)),
+	% TODO: uri_decode ↓ (no utf-8 aware uri_decode in stdlib)
+	mod_esi:deliver(S, "Location: q/" ++ [118 + Orig - User] ++ IDs ++ "\r\n\r\n").
 q(S, _, Input) ->
 	[Mode|Query] = uri_decode(Input),
 	OrigNames = Mode > 255,
