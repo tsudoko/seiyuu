@@ -52,25 +52,25 @@ query(V, IDs) ->
 char_vns(Chars, ID) ->
 	#{ID := #{<<"vns">> := VNs}} = Chars,
 	[V || [V|_] <- VNs].
-% TODO: always output both, just switch alt/contents like on vndb
-data_name(Data, ID, Orig) when Orig == false ->
-	#{ID := #{<<"name">> := Name}} = Data,
-	Name;
-data_name(Data, ID, Orig) when Orig == true ->
-	#{ID := #{<<"name">> := Fallback, <<"original">> := Name}} = Data,
-	case Name of null -> Fallback; _ -> Name end.
-alias_name(Data, ID, Orig) ->
-	[{Name, Original}] = [{Name, Original} || #{<<"aliases">> := Aliases} <- maps:values(Data), [AID, Name, Original] <- Aliases, AID == ID],
-	case Orig of
-		true -> case Original of null -> Name; _ -> Original end;
-		false -> Name
-	end.
-data_title(Data, ID, Orig) when Orig == false ->
-	#{ID := #{<<"title">> := Name}} = Data,
-	Name;
-data_title(Data, ID, Orig) when Orig == true ->
-	#{ID := #{<<"title">> := Fallback, <<"original">> := Name}} = Data,
-	case Name of null -> Fallback; _ -> Name end.
+data_name(Data, ID) ->
+	#{ID := #{<<"name">> := Romaji, <<"original">> := Original}} = Data,
+	{Romaji, case Original of null -> Romaji; _ -> Original end}.
+alias_name(Data, ID) ->
+	[{Romaji, Original}] = [{Romaji, Original} || #{<<"aliases">> := Aliases} <- maps:values(Data), [AID, Romaji, Original] <- Aliases, AID == ID],
+	{Romaji, case Original of null -> Romaji; _ -> Original end}.
+data_title(Data, ID) ->
+	#{ID := #{<<"title">> := Romaji, <<"original">> := Original}} = Data,
+	{Romaji, case Original of null -> Romaji; _ -> Original end}.
+
+% (cosmetic) TODO: don't include alt if alt == name
+vndb_link(Prefix, ID, {Name, Alt}, Orig) when Orig == false ->
+	["<a href=\"https://vndb.org/", Prefix, ht(integer_to_binary(ID)), "\" title=\"", ht(Alt), "\">", ht(Name), "</a>"];
+vndb_link(Prefix, ID, {Name, Alt}, Orig) when Orig == true ->
+	vndb_link(Prefix, ID, {Alt, Name}, false).
+vndb_alias({Name, Alt}, Orig) when Orig == false ->
+	["<span title=\"", ht(Alt), "\">", ht(Name), "</span>"];
+vndb_alias({Name, Alt}, Orig) when Orig == true ->
+	vndb_alias({Alt, Name}, false).
 
 table_html(R, O) ->
 	table_html(R, O, []).
@@ -78,7 +78,7 @@ table_html(R, O, []) ->
 	table_html(R, O, ["<table cellspacing=0>"]);
 table_html({{VNs, Staff, Chars, [{S, A}|Rest]}, IDs}, Orig, Table) ->
 	#{S := #{<<"main_alias">> := Amain}} = Staff,
-	T = table_html_chars({VNs, Staff, Chars}, IDs, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2><a href=\"https://vndb.org/s", ht(integer_to_binary(S)), "\" title=\"alt here\">", ht(data_name(Staff, S, Orig)), "</a></td></tr>"]),
+	T = table_html_chars({VNs, Staff, Chars}, IDs, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2>", vndb_link("s", S, data_name(Staff, S), Orig), "</td></tr>"]),
 	table_html({{VNs, Staff, Chars, Rest}, IDs}, Orig, T);
 table_html({{_, _, _, []}, _}, _, Table) ->
 	Table ++ ["</table>"].
@@ -89,16 +89,15 @@ table_html_chars(_, _, _, [], _, Table) ->
 	Table.
 table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table) ->
 	table_html_chars_(D, IDs, Amain, A, Rest, Orig, Table ++ [
-		<<"<tr><td><a href=\"https://vndb.org/c">>,
-		ht(integer_to_binary(C)), "\" title=\"alt here\">",
-		ht(data_name(Chars, C, Orig)),
-		"</a></td><td>",
+		"<tr><td>",
+		vndb_link("c", C, data_name(Chars, C), Orig),
+		"</td><td>",
 		case Amain == A of
 			true -> "";
-			false -> ht(alias_name(Staff, A, Orig))
+			false -> vndb_alias(alias_name(Staff, A), Orig)
 		end,
 		"</td><td>",
-		lists:join(", ", lists:usort([["<a href=\"https://vndb.org/v", ht(integer_to_binary(X)), "\" title=\"alt here\">", ht(data_title(VNs, X, Orig)), "</a>"] || X <- char_vns(Chars, C), lists:member(X, IDs)])),
+		lists:join(", ", lists:usort([vndb_link("v", V, data_title(VNs, V), Orig) || V <- char_vns(Chars, C), lists:member(V, IDs)])),
 		"</td></tr>"]);
 table_html_chars_(_, _, _, _, [], _, Table) ->
 	Table.
@@ -129,6 +128,7 @@ main(S, _, _) ->
 		?BOILERPLATE ]).
 get(S, _, Input) ->
 	Q = httpd:parse_query(Input),
+	% TODO: strip whitespace (all whitespace, everywhere, not just ^ and $)
 	IDs = proplists:get_value("ids", Q),
 	Orig = list_to_integer(proplists:get_value("orig", Q, 1)) * 65248,
 	User = list_to_integer(proplists:get_value("user", Q, 0)),
