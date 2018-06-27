@@ -10,7 +10,7 @@ start() ->
 	% TODO: read values below from a config file (cache too?)
 	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
 	V = vndb:connect(),
-	vndb:login(V, Auth),
+	ok = vndb:login(V, Auth),
 	Vp = spawn(seiyuu, loop, [V, Auth]),   register(seiyuu_vndb, Vp),
 	Cp = spawn(seiyuu_cache, loop, [#{}]), register(seiyuu_cache, Cp),
 	ok.
