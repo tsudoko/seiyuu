@@ -52,6 +52,7 @@ query(V, IDs) ->
 char_vns(Chars, ID) ->
 	#{ID := #{<<"vns">> := VNs}} = Chars,
 	[V || [V|_] <- VNs].
+% TODO: always output both, just switch alt/contents like on vndb
 data_name(Data, ID, Orig) when Orig == false ->
 	#{ID := #{<<"name">> := Name}} = Data,
 	Name;
@@ -131,7 +132,7 @@ get(S, _, Input) ->
 	IDs = proplists:get_value("ids", Q),
 	Orig = list_to_integer(proplists:get_value("orig", Q, 1)) * 65248,
 	User = list_to_integer(proplists:get_value("user", Q, 0)),
-	% TODO: uri_decode ↓ (no utf-8 aware uri_decode in stdlib)
+	% TODO: uri_encode                           ↓ (no utf-8 aware uri_encode in stdlib)
 	mod_esi:deliver(S, "Location: q/" ++ [118 + Orig - User] ++ IDs ++ "\r\n\r\n").
 q(S, _, Input) ->
 	[Mode|Query] = uri_decode(Input),
