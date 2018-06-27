@@ -54,22 +54,25 @@ char_vns(Chars, ID) ->
 	[V || [V|_] <- VNs].
 data_name(Data, ID) ->
 	#{ID := #{<<"name">> := Romaji, <<"original">> := Original}} = Data,
-	{Romaji, case Original of null -> Romaji; _ -> Original end}.
+	{Romaji, Original}.
 alias_name(Data, ID) ->
 	[{Romaji, Original}] = [{Romaji, Original} || #{<<"aliases">> := Aliases} <- maps:values(Data), [AID, Romaji, Original] <- Aliases, AID == ID],
-	{Romaji, case Original of null -> Romaji; _ -> Original end}.
+	{Romaji, Original}.
 data_title(Data, ID) ->
 	#{ID := #{<<"title">> := Romaji, <<"original">> := Original}} = Data,
-	{Romaji, case Original of null -> Romaji; _ -> Original end}.
+	{Romaji, Original}.
 
-% (cosmetic) TODO: don't include alt if alt == name
-vndb_link(Prefix, ID, {Name, Alt}, Orig) when Orig == false ->
+vndb_link(Prefix, ID, {Name, null}, _) ->
+	["<a href=\"https://vndb.org/", Prefix, ht(integer_to_binary(ID)), "\">", ht(Name), "</a>"];
+vndb_link(Prefix, ID, {Name, Alt}, _Orig = false) ->
 	["<a href=\"https://vndb.org/", Prefix, ht(integer_to_binary(ID)), "\" title=\"", ht(Alt), "\">", ht(Name), "</a>"];
-vndb_link(Prefix, ID, {Name, Alt}, Orig) when Orig == true ->
+vndb_link(Prefix, ID, {Name, Alt}, _Orig = true) ->
 	vndb_link(Prefix, ID, {Alt, Name}, false).
-vndb_alias({Name, Alt}, Orig) when Orig == false ->
+vndb_alias({Name, null}, _) ->
+	ht(Name);
+vndb_alias({Name, Alt}, _Orig = false) ->
 	["<span title=\"", ht(Alt), "\">", ht(Name), "</span>"];
-vndb_alias({Name, Alt}, Orig) when Orig == true ->
+vndb_alias({Name, Alt}, _Orig = true) ->
 	vndb_alias({Alt, Name}, false).
 
 table_html(R, O) ->
