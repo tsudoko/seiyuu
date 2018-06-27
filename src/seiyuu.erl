@@ -107,9 +107,9 @@ table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table)
 table_html_chars_(_, _, _, _, [], _, Table) ->
 	Table.
 
-query_ids(false, Query) ->
+query_ids(_UserList = false, Query) ->
 	[list_to_integer(X) || X <- string:split(Query, ",", all)];
-query_ids(true, Query) ->
+query_ids(_UserList = true, Query) ->
 	seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)},
 	receive {vnlist, IDs} -> IDs end.
 
