@@ -3,7 +3,7 @@
 -export([q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1]).
 
--define(BOILERPLATE, "<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd }</style></head><body>").
+-define(BOILERPLATE, "<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } body { background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd } iframe { width: 100%; height: 100%; border: none; }</style></head><body>").
 
 start() ->
 	% maybe TODO: lazy login
@@ -106,7 +106,11 @@ query_ids(true, Query) ->
 	seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)},
 	receive {vnlist, IDs} -> IDs end.
 
-q(S, _, Input) when Input /= "" ->
+q(S, _, "") ->
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE, "<a target=main href=_main>", <<"にゃあ"/utf8>>, "</a><div><iframe name=main src=_main /></div>"]);
+q(S, _, "_main") ->
+	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE, "<center>", "stuff here"]);
+q(S, _, Input) ->
 	[Mode|Query] = uri_decode(Input),
 	OrigNames = Mode > 255,
 	UserList = OrigNames and (Mode - 65248 == 117) orelse Mode == 117,
@@ -120,6 +124,4 @@ q(S, _, Input) when Input /= "" ->
 	% ugly workaround, for some reason lists:flatten/1 (which is used
 	% internally by mod_esi:deliver/2) fails on certain large iolists,
 	% but iolist_to_binary/1 doesn't
-	mod_esi:deliver(S, binary_to_list(iolist_to_binary(Response)));
-q(S, _, "") ->
-	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE, <<"にゃあ"/utf8>>]).
+	mod_esi:deliver(S, binary_to_list(iolist_to_binary(Response))).
