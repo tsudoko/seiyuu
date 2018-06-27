@@ -49,6 +49,8 @@ query(V, IDs) ->
 			CharList /= []]]],
 	{VNs, Staff, Chars, StaffChars}.
 
+% --- html stuff below
+
 char_vns(Chars, ID) ->
 	#{ID := #{<<"vns">> := VNs}} = Chars,
 	[V || [V|_] <- VNs].
