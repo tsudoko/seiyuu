@@ -1,89 +1,37 @@
 -module(seiyuu).
--export([start/0, loop/3, query/3, vnlist/3]).
+-export([start/0, loop/2]).
 -export([q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1]).
 
 start() ->
 	% maybe TODO: lazy login
+	% TODO: read values below from a config file (cache too?)
 	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
 	V = vndb:connect(),
 	vndb:login(V, Auth),
-	PID = spawn(seiyuu, loop, [V, Auth, #{}]),
-	register(seiyuu_vndb, PID),
+	Vp = spawn(seiyuu, loop, [V, Auth]),   register(seiyuu_vndb, Vp),
+	Cp = spawn(seiyuu_cache, loop, [#{}]), register(seiyuu_cache, Cp),
 	ok.
 
-% would be less hacky to just recreate an API server locally probably,
-% but that's too much work
-%
-% i.e. right now only exact requests are cached, so if you do "get
-% character (vn = 1)" and it returns characters 100, 101, 102, "get
-% character (id = [100,101,102])" won't use the cache even though the
-% data is all there
-%
-% this is not an issue as long as we search by the same field in
-% every request for a given data type, though, and that's what we
-% do currently
-loop(V, Auth, Caches) ->
+loop(V, Auth) ->
 	receive
-		{cacheload, NewCaches} ->
-			loop(V, Auth, NewCaches);
-		{cachedump, PID} ->
-			PID ! {cachedump, Caches},
-			loop(V, Auth, Caches);
-		{cacheget, PID, Type, IDParam, IDs} ->
-			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
-			#{IDParam := Cache} = CacheDir,
-			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Cache)],
-			Data = maps:with(IDs, Cache),
-			PID ! {cacheget, Uncached, Data},
-			loop(V, Auth, Caches);
-		{cacheput, Type, IDParam, NewData} ->
-			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
-			#{IDParam := Cache} = CacheDir,
-			loop(V, Auth, Caches#{Type => #{IDParam => maps:merge(Cache, NewData)}});
-		% --- XXX ---
 		{query, PID, IDs} ->
-			spawn(seiyuu, query, [V, PID, IDs]),
-			loop(V, Auth, Caches);
+			PID ! {query, query(V, IDs)};
 		{vnlist, PID, UID} ->
-			spawn(seiyuu, vnlist, [V, PID, UID]),
-			loop(V, Auth, Caches)
-		% TODO: crash on unknown messages
-	end.
-
-% this function assumes Flags are always the same for a given type
-get(V, Type, Flags, IDParam, IDs) ->
-	seiyuu_vndb ! {cacheget, self(), Type, IDParam, IDs},
-	receive {cacheget, Uncached, Cached} -> ok end,
-	maps:merge(Cached, request_uncached(V, Type, Flags, IDParam, Uncached)).
-
-request_uncached(_, _, _, _, []) ->
-	#{};
-request_uncached(V, Type = vnlist, Flags, IDParam = "uid", [ID]) ->
-	response_to_map_(Type, IDParam, [ID], vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]));
-request_uncached(V, Type, Flags, IDParam, IDs) ->
-	R = case IDs of
-		[ID] -> vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
-		_ ->    vndb_util:get_all(V, Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"])
+			PID ! {vnlist, vnlist(V, UID)};
+		Msg ->
+			throw({unknown_msg, Msg})
 	end,
-	RMap = response_to_map_(Type, IDParam, IDs, R),
-	seiyuu_vndb ! {cacheput, Type, IDParam, RMap},
-	RMap.
-response_to_map_(_, "id", _, R) ->
-	maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]);
-response_to_map_(vnlist, "uid", [ID], R) ->
-	#{ID => R};
-response_to_map_(character, "vn", IDs, R) ->
-	maps:from_list([{VNID, [Data || #{<<"vns">> := VNs} = Data <- R, [ID|_] <- VNs, ID == VNID]} || VNID <- IDs]).
+	loop(V, Auth).
 
-vnlist(V, PID, UID) ->
-	#{UID := List} = get(V, vnlist, [basic], "uid", [UID]),
-	PID ! {vnlist, [ID || #{<<"vn">> := ID} <- List]}.
-query(V, PID, IDs) ->
+vnlist(V, UID) ->
+	#{UID := List} = seiyuu_cache:get(V, vnlist, [basic], "uid", [UID]),
+	[ID || #{<<"vn">> := ID} <- List].
+query(V, IDs) ->
 	% TODO: sort by vn
-	VNs = get(V, vn, [basic], "id", IDs),
-	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(get(V, character, [basic, voiced, vns], "vn", IDs)))]),
-	Staff = get(V, staff, [basic, aliases], "id",
+	VNs = seiyuu_cache:get(V, vn, [basic], "id", IDs),
+	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(seiyuu_cache:get(V, character, [basic, voiced, vns], "vn", IDs)))]),
+	Staff = seiyuu_cache:get(V, staff, [basic, aliases], "id",
 		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- maps:values(Chars)])])),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
 	StaffChars =
@@ -95,7 +43,7 @@ query(V, PID, IDs) ->
 				#{<<"id">> := C, <<"voiced">> := Voiced} <- maps:values(Chars),
 				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
 			CharList /= []]]],
-	PID ! {query, {VNs, Staff, Chars, StaffChars}}.
+	{VNs, Staff, Chars, StaffChars}.
 
 char_vns(Chars, ID) ->
 	#{ID := #{<<"vns">> := VNs}} = Chars,
