@@ -1,5 +1,5 @@
 -module(seiyuu).
--export([start/0, loop/2]).
+-export([start/0]).
 -export([index/3, main/3, get/3, q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1]).
 
@@ -11,33 +11,20 @@ start() ->
 	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
 	V = vndb:connect(),
 	ok = vndb:login(V, Auth),
-	Vp = spawn(seiyuu, loop, [V, Auth]),   register(seiyuu_vndb, Vp),
+	Vp = spawn(seiyuu_vndb, loop, [V, Auth]), register(seiyuu_vndb, Vp),
 	Cp = spawn(seiyuu_cache, loop, [#{}]), register(seiyuu_cache, Cp),
 	ok.
 
-loop(V, Auth) ->
-	receive
-		{query, PID, IDs} ->
-			% TODO: don't fail completely when vndb isn't reachable,
-			% just return some error with cached results
-			PID ! {query, query(V, IDs)};
-		{vnlist, PID, UID} ->
-			PID ! {vnlist, vnlist(V, UID)};
-		Msg ->
-			throw({unknown_msg, Msg})
-	end,
-	loop(V, Auth).
-
-vnlist(V, UID) ->
-	#{UID := List} = seiyuu_cache:get(V, vnlist, [basic], "uid", [UID]),
+vnlist(UID) ->
+	#{UID := List} = seiyuu_cache:get(vnlist, [basic], "uid", [UID]),
 	[ID || #{<<"vn">> := ID} <- List].
-query(V, IDs) ->
+query(IDs) ->
 	% TODO: sort by vn
 	%   ↑   seems a bit complex though, we'd need to sort all the keys
 	%       (staff, char, alias) and then sort each alias by VNs too
-	VNs = seiyuu_cache:get(V, vn, [basic], "id", IDs),
-	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(seiyuu_cache:get(V, character, [basic, voiced, vns], "vn", IDs)))]),
-	Staff = seiyuu_cache:get(V, staff, [basic, aliases], "id",
+	VNs = seiyuu_cache:get(vn, [basic], "id", IDs),
+	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(seiyuu_cache:get(character, [basic, voiced, vns], "vn", IDs)))]),
+	Staff = seiyuu_cache:get(staff, [basic, aliases], "id",
 		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- maps:values(Chars)])])),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
 	% maybe TODO: represent the data the same way as it's laid out in the html table
@@ -111,8 +98,7 @@ table_html_chars(_, _, _, _, [], _, _) -> ok.
 query_ids(_UserList = false, Query) ->
 	[list_to_integer(X) || X <- string:split(Query, ",", all)];
 query_ids(_UserList = true, Query) ->
-	seiyuu_vndb ! {vnlist, self(), list_to_integer(Query)},
-	receive {vnlist, IDs} -> IDs end.
+	vnlist(list_to_integer(Query)).
 
 index(S, _, _) ->
 	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE,
@@ -145,11 +131,8 @@ q(S, _, Input) ->
 	OrigNames = Mode > 255,
 	UserList = OrigNames and (Mode - 65248 == 117) orelse Mode == 117,
 	true = UserList or (Mode - 65248 == 118) orelse Mode == 118,
-
 	IDs = query_ids(UserList, Query),
-	seiyuu_vndb ! {query, self(), IDs},
-	receive {query, Results} -> Results end,
 
 	mod_esi:deliver(S, "Content-type: text/html; charset=utf-8\r\n\r\n"),
 	mod_esi:deliver(S, ?BOILERPLATE),
-	table_html({Results, IDs}, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).
+	table_html({query(IDs), IDs}, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).

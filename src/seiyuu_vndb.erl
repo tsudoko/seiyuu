@@ -7,16 +7,16 @@
 
 loop(V, Auth) ->
 	receive
-		{get, PID, V, Type, Flags, Filters, Options} ->
-			{Response, R} = vndb:get(V, Type, Flags, Filters, Options),
-			case Response of
+		{get, PID, Type, Flags, Filters, Options} ->
+			{Res, Results} = vndb:get(V, Type, Flags, Filters, Options),
+			case Res of
 				error ->
 					#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout} = Results,
 					?LOG_INFO("throttled (~ps)~n", [Timeout]),
 					timer:sleep(timer:seconds(ceil(Timeout))),
-					self() ! {get, PID, V, Type, Flags, Filters, Options};
+					self() ! {get, PID, Type, Flags, Filters, Options};
 				results ->
-					PID ! {get, Response}
+					PID ! {get, Results}
 			end;
 		Msg ->
 			throw({unknown_msg, Msg})
@@ -29,7 +29,7 @@ get_all(Type, Flags, Filters, Options) ->
 	get_all_(Type, Flags, Filters, Options, []).
 get_all_(Type, Flags, Filters, Options, Items) ->
 	Page = maps:get(page, Options, 1),
-	seiyuu_vndb ! {get, Type, Flags, Filters, Options, Items},
+	seiyuu_vndb ! {get, self(), Type, Flags, Filters, Options},
 	receive {get, #{<<"more">> := More, <<"items">> := NewItems}} -> ok end,
 	case More of
 		false -> Items ++ NewItems;
