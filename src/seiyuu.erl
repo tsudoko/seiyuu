@@ -77,35 +77,32 @@ vndb_alias({Name, Alt}, _Orig = false) ->
 vndb_alias({Name, Alt}, _Orig = true) ->
 	vndb_alias({Alt, Name}, false).
 
-table_html(R, O) ->
-	table_html(R, O, []).
-table_html(R, O, []) ->
-	table_html(R, O, ["<table cellspacing=0>"]);
-table_html({{VNs, Staff, Chars, [{S, A}|Rest]}, IDs}, Orig, Table) ->
+table_html(R, O, Send) ->
+	Send("<table cellspacing=0>"),
+	table_html_staff(R, O, Send).
+table_html_staff({{VNs, Staff, Chars, [{S, A}|Rest]}, IDs}, Orig, Send) ->
 	#{S := #{<<"main_alias">> := Amain}} = Staff,
-	T = table_html_chars({VNs, Staff, Chars}, IDs, Amain, A, Orig, Table ++ ["<tr class=staff><td colspan=2>", vndb_link("s", S, data_name(Staff, S), Orig), "</td></tr>"]),
-	table_html({{VNs, Staff, Chars, Rest}, IDs}, Orig, T);
-table_html({{_, _, _, []}, _}, _, Table) ->
-	Table ++ ["</table>"].
-table_html_chars(D, IDs, Amain, [{A, C}|Rest], Orig, Table) ->
-	T = table_html_chars_(D, IDs, Amain, A, C, Orig, Table),
-	table_html_chars(D, IDs, Amain, Rest, Orig, T);
-table_html_chars(_, _, _, [], _, Table) ->
-	Table.
-table_html_chars_(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Table) ->
-	table_html_chars_(D, IDs, Amain, A, Rest, Orig, Table ++ [
-		"<tr><td>",
-		vndb_link("c", C, data_name(Chars, C), Orig),
-		"</td><td>",
-		case Amain == A of
-			true -> "";
-			false -> vndb_alias(alias_name(Staff, A), Orig)
-		end,
-		"</td><td>",
-		lists:join(", ", lists:usort([vndb_link("v", V, data_title(VNs, V), Orig) || V <- char_vns(Chars, C), lists:member(V, IDs)])),
-		"</td></tr>"]);
-table_html_chars_(_, _, _, _, [], _, Table) ->
-	Table.
+	Send("<tr class=staff><td colspan=2>"),
+	Send(vndb_link("s", S, data_name(Staff, S), Orig)),
+	Send("</td></tr>"),
+	table_html_aliases({VNs, Staff, Chars}, IDs, Amain, A, Orig, Send),
+	table_html_staff({{VNs, Staff, Chars, Rest}, IDs}, Orig, Send);
+table_html_staff({{_, _, _, []}, _}, _, Send) ->
+	Send("</table>").
+table_html_aliases(D, IDs, Amain, [{A, C}|Rest], Orig, Send) ->
+	table_html_chars(D, IDs, Amain, A, C, Orig, Send),
+	table_html_aliases(D, IDs, Amain, Rest, Orig, Send);
+table_html_aliases(_, _, _, [], _, _) -> ok.
+table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Send) ->
+	Send("<tr><td>"),
+	Send(vndb_link("c", C, data_name(Chars, C), Orig)),
+	Send("</td><td>"),
+	Send(case Amain == A of true -> ""; false -> vndb_alias(alias_name(Staff, A), Orig) end),
+	Send("</td><td>"),
+	Send(lists:join(", ", lists:usort([vndb_link("v", V, data_title(VNs, V), Orig) || V <- char_vns(Chars, C), lists:member(V, IDs)]))),
+	Send("</td></tr>"),
+	table_html_chars(D, IDs, Amain, A, Rest, Orig, Send);
+table_html_chars(_, _, _, _, [], _, _) -> ok.
 
 query_ids(_UserList = false, Query) ->
 	[list_to_integer(X) || X <- string:split(Query, ",", all)];
@@ -149,8 +146,6 @@ q(S, _, Input) ->
 	seiyuu_vndb ! {query, self(), IDs},
 	receive {query, Results} -> Results end,
 
-	Response = ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE, table_html({Results, IDs}, OrigNames)],
-	% ugly workaround, for some reason lists:flatten/1 (which is used
-	% internally by mod_esi:deliver/2) fails on certain large iolists,
-	% but iolist_to_binary/1 doesn't
-	mod_esi:deliver(S, binary_to_list(iolist_to_binary(Response))).
+	mod_esi:deliver(S, "Content-type: text/html; charset=utf-8\r\n\r\n"),
+	mod_esi:deliver(S, ?BOILERPLATE),
+	table_html({Results, IDs}, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).
