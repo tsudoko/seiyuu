@@ -2,8 +2,6 @@
 -export([connect/0, connect/3, cmd/2, close/1]).
 -export([login/2, dbstats/1, get/4, get/5]).
 
-% TODO: timeouts? send/2 and recv/2 have them set to infinity
-
 % --- basic interface
 
 connect() -> connect("api.vndb.org", 19535, true).
@@ -11,12 +9,12 @@ connect(Host, Port, SSL) ->
 	true = jsx:maps_support(),
 	Opts = [binary, {packet, 0}, {active, false}],
 	TCP = case SSL of false -> gen_tcp; true -> ssl end,
-	{ok, Sock} = TCP:connect(Host, Port, Opts),
+	{ok, Sock} = TCP:connect(Host, Port, Opts, 5000),
 	{vndb, Sock, TCP}.
 
 cmd({vndb, S, TCP}, Cmd) ->
 	ok = TCP:send(S, [Cmd, <<4>>]),
-	{ok, R} = TCP:recv(S, 0),
+	{ok, R} = TCP:recv(S, 0, 5000),
 
 	% according to https://vndb.org/d11#2 there's no strictly defined format for
 	% responses, but right now they all follow a single convention: name,
@@ -52,7 +50,7 @@ cmd_term(R) ->
 	end.
 
 cmd_recvmore(S, TCP, F) ->
-	{ok, Response} = TCP:recv(S, 0),
+	{ok, Response} = TCP:recv(S, 0, 5000),
 	case cmd_term(Response) of
 		noterm ->
 			{incomplete, G} = F(Response),
