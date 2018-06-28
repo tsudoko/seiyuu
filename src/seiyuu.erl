@@ -33,11 +33,15 @@ vnlist(V, UID) ->
 	[ID || #{<<"vn">> := ID} <- List].
 query(V, IDs) ->
 	% TODO: sort by vn
+	%   ↑   seems a bit complex though, we'd need to sort all the keys
+	%       (staff, char, alias) and then sort each alias by VNs too
 	VNs = seiyuu_cache:get(V, vn, [basic], "id", IDs),
 	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(seiyuu_cache:get(V, character, [basic, voiced, vns], "vn", IDs)))]),
 	Staff = seiyuu_cache:get(V, staff, [basic, aliases], "id",
 		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- maps:values(Chars)])])),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
+	% maybe TODO: represent the data the same way as it's laid out in the html table
+	% i.e. [{staff1, [{char1, alias1, [vn1, vn2...]}, {char2...}...]...]
 	StaffChars =
 	[{S, AliasList} ||
 		#{<<"id">> := S, <<"aliases">> := Aliases} <- maps:values(Staff),
