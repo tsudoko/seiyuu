@@ -2,14 +2,17 @@
 -export([loop/2, get_all/3, get_all/4]).
 -include_lib("kernel/include/logger.hrl").
 
+% this process is used for communicating with VNDB, we wouldn't
+% be able to rate limit multiple simultaneous queries without one
+
 loop(V, Auth) ->
 	receive
 		{get, PID, V, Type, Flags, Filters, Options} ->
 			{Response, R} = vndb:get(V, Type, Flags, Filters, Options),
 			case Response of
 				error ->
-					#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout} = R,
-					?LOG_INFO("throttled (~fs)~n", [Timeout]),
+					#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout} = Results,
+					?LOG_INFO("throttled (~ps)~n", [Timeout]),
 					timer:sleep(timer:seconds(ceil(Timeout))),
 					self() ! {get, PID, V, Type, Flags, Filters, Options};
 				results ->

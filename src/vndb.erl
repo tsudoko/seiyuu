@@ -1,7 +1,7 @@
 -module(vndb).
--include_lib("kernel/include/logger.hrl").
 -export([connect/0, connect/3, cmd/2, close/1]).
 -export([login/2, dbstats/1, get/4, get/5]).
+-include_lib("kernel/include/logger.hrl").
 
 % --- basic interface
 
@@ -14,7 +14,7 @@ connect(Host, Port, SSL) ->
 	{vndb, Sock, TCP}.
 
 cmd({vndb, S, TCP}, Cmd) ->
-	?LOG_DEBUG("cmd: ~p~n", [iolist_to_binary(Cmd)]),
+	?LOG_DEBUG("cmd: ~s~n", [iolist_to_binary(Cmd)]),
 	ok = TCP:send(S, [Cmd, <<4>>]),
 	{ok, R} = TCP:recv(S, 0, 5000),
 
