@@ -36,6 +36,8 @@ loop(Caches) ->
 	end.
 
 % this function assumes Flags are always the same for a given type
+% TODO: don't fail completely when vndb isn't reachable, just return
+% some error with cached results
 get(V, Type, Flags, IDParam, IDs) ->
 	seiyuu_cache ! {cacheget, self(), Type, IDParam, IDs},
 	receive {cacheget, Uncached, Cached} -> ok end,
