@@ -1,5 +1,6 @@
 -module(vndb_util).
 -export([get_all/4, get_all/5]).
+-include_lib("kernel/include/logger.hrl").
 
 % since throttles are handled inside this function, calling it from
 % more than one process at a time on the same connection might make
@@ -24,7 +25,7 @@ get_all(V, Type, Flags, Filter, Options, Items) ->
 	case Response of
 		error ->
 			#{<<"id">> := <<"throttled">>, <<"fullwait">> := Timeout} = R,
-			logger:info("throttled (~fs)~n", [Timeout]),
+			?LOG_INFO("throttled (~fs)~n", [Timeout]),
 			timer:sleep(timer:seconds(ceil(Timeout))),
 			get_all(V, Type, Flags, Filter, Options, Items);
 		results ->
