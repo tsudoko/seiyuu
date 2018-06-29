@@ -54,6 +54,7 @@ get(Type, Flags, IDParam, IDs) ->
 
 request_uncached(_, _, _, []) ->
 	[];
+% some get commands don't accept ID arrays, but work fine with a single ID
 request_uncached(Type, Flags, IDParam, [ID]) ->
 	seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
 request_uncached(Type, Flags, IDParam, IDs) ->
