@@ -14,14 +14,12 @@ loop(Caches, Relations) ->
 			Data = maps:values(maps:with(IDs, Cache)),
 			PID ! {cacheget, Uncached, Data},
 			loop(Caches, Relations);
-		{cacheget, PID, Type, "vn", IDs} ->
+		{cacheget, PID, Type, "vn", RelIDs} ->
+			Cache = maps:get(Type, Caches, #{}),
 			Rel = maps:get({"vn", Type}, Relations, #{}),
-			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Rel)],
-			CachedIDs = lists:flatten(maps:values(maps:with(IDs, Cache))),
-			% ↓: the hell man that's not gonna work, you're in the very loop
-			%    that's supposed to receive that message
-			self() ! {cacheget, self(), Type, "id", CachedIDs},
-			receive {cacheget, [], Data} -> ok end,
+			Uncached = [ID || ID <- RelIDs, not maps:is_key(ID, Rel)],
+			CachedIDs = lists:flatten(maps:values(maps:with(IDs, Rel))),
+			Data = maps:values(maps:with(CachedIDs, Cache)),
 			PID ! {cacheget, Uncached, Data},
 			loop(Caches, Relations);
 		{cacheput, Type, "id", _, NewData} ->
