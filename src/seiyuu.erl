@@ -15,6 +15,8 @@ start() ->
 	Cp = spawn(seiyuu_cache, loop, [#{}]), register(seiyuu_cache, Cp),
 	ok.
 
+idmap(List) -> maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- List]).
+
 vnlist(UID) ->
 	#{UID := List} = seiyuu_cache:get(vnlist, [basic], "uid", [UID]),
 	[ID || #{<<"vn">> := ID} <- List].
@@ -23,22 +25,22 @@ query(IDs) ->
 	%   ↑   seems a bit complex though, we'd need to sort all the keys
 	%       (staff, char, alias) and then sort each alias by VNs too
 	VNs = seiyuu_cache:get(vn, [basic], "id", IDs),
-	Chars = maps:from_list([{CharID, Data} || #{<<"id">> := CharID} = Data <- lists:flatten(maps:values(seiyuu_cache:get(character, [basic, voiced, vns], "vn", IDs)))]),
+	Chars = seiyuu_cache:get(character, [basic, voiced, vns], "vn", IDs),
 	Staff = seiyuu_cache:get(staff, [basic, aliases], "id",
-		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- maps:values(Chars)])])),
+		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- Chars])])),
 	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
 	% maybe TODO: represent the data the same way as it's laid out in the html table
 	% i.e. [{staff1, [{char1, alias1, [vn1, vn2...]}, {char2...}...]...]
 	StaffChars =
 	[{S, AliasList} ||
-		#{<<"id">> := S, <<"aliases">> := Aliases} <- maps:values(Staff),
+		#{<<"id">> := S, <<"aliases">> := Aliases} <- Staff,
 		AliasList <- [[{A, CharList} ||
 			[A|_] <- Aliases,
 			CharList <- [[C ||
-				#{<<"id">> := C, <<"voiced">> := Voiced} <- maps:values(Chars),
+				#{<<"id">> := C, <<"voiced">> := Voiced} <- Chars,
 				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
 			CharList /= []]]],
-	{VNs, Staff, Chars, StaffChars}.
+	{idmap(VNs), idmap(Staff), idmap(Chars), StaffChars}.
 
 % --- html stuff below
 

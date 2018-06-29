@@ -1,23 +1,6 @@
 -module(seiyuu_cache).
 -export([loop/1, get/4]).
 
-% maybe TODO: store vn -> character relations instead of whole requests,
-%             keep characters in regular "id" caches
-%     ↑ reliability wise it would be better to request one vn at a time,
-%        since if a batch process dies midway we'd have some missing
-%        records which wouldn't be refetched
-
-% would be less hacky to just recreate an API server locally probably,
-% but that's too much work
-%
-% i.e. right now only exact requests are cached, so if you do "get
-% character (vn = 1)" and it returns characters 100, 101, 102, "get
-% character (id = [100,101,102])" won't use the cache even though the
-% data is all there
-%
-% this is not an issue as long as we search by the same field in
-% every request for a given data type, though, and that's what we
-% do currently
 loop(Caches, Relations) ->
 	receive
 		{cacheload, {NewCaches, NewRelations}} ->
@@ -28,22 +11,28 @@ loop(Caches, Relations) ->
 		{cacheget, PID, Type, "id", IDs} ->
 			Cache = maps:get(Type, Caches, #{}),
 			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Cache)],
-			Data = maps:with(IDs, Cache),
+			Data = maps:values(maps:with(IDs, Cache)),
 			PID ! {cacheget, Uncached, Data},
 			loop(Caches, Relations);
 		{cacheget, PID, Type, "vn", IDs} ->
 			Rel = maps:get({"vn", Type}, Relations, #{}),
 			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Rel)],
 			CachedIDs = lists:flatten(maps:values(maps:with(IDs, Cache))),
+			% ↓: the hell man that's not gonna work, you're in the very loop
+			%    that's supposed to receive that message
 			self() ! {cacheget, self(), Type, "id", CachedIDs},
 			receive {cacheget, [], Data} -> ok end,
-			PID ! {cacheget, Uncached, Data};
-		{cacheput, Type, "id", NewData} ->
+			PID ! {cacheget, Uncached, Data},
+			loop(Caches, Relations);
+		{cacheput, Type, "id", _, NewData} ->
 			Cache = maps:get(Type, Caches, #{}),
-			loop(Caches#{Type => maps:merge(Cache, NewData)}, Relations);
-		{cacheput, Type, "vn", NewData} ->
+			DMap = maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- NewData]),
+			loop(Caches#{Type => maps:merge(Cache, DMap)}, Relations);
+		{cacheput, Type, "vn", IDs, NewData} ->
 			Rel = maps:get({"vn", Type}, Relations, #{}),
-			% TODO: extract IDs here
+			NewRel = [{VNID, [ID || #{<<"id">> := ID, <<"vns">> := VNs} <- NewData, [VNID|_] <- VNs, VNID == ID] || VNID <- IDs}],
+			self() ! {cacheput, Type, "id", IDs, NewData},
+			loop(Caches, Relations#{{"vn", Type} => maps:merge(Rel, NewRel)});
 		Msg ->
 			throw({unknown_msg, Msg}),
 			loop(Caches, Relations)
@@ -66,12 +55,5 @@ request_uncached(Type, Flags, IDParam, IDs) ->
 		[ID] -> seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
 		_ ->    seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"])
 	end,
-	RMap = response_to_map_(Type, IDParam, IDs, R),
-	seiyuu_cache ! {cacheput, Type, IDParam, RMap},
-	RMap.
-response_to_map_(_, "id", _, R) ->
-	maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- R]);
-response_to_map_(vnlist, "uid", [ID], R) ->
-	#{ID => R};
-response_to_map_(character, "vn", IDs, R) ->
-	maps:from_list([{VNID, [Data || #{<<"vns">> := VNs} = Data <- R, [ID|_] <- VNs, ID == VNID]} || VNID <- IDs]).
+	seiyuu_cache ! {cacheput, Type, IDParam, IDs, R},
+	R.
