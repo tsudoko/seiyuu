@@ -18,27 +18,35 @@
 % this is not an issue as long as we search by the same field in
 % every request for a given data type, though, and that's what we
 % do currently
-loop(Caches) ->
+loop(Caches, Relations) ->
 	receive
-		{cacheload, NewCaches} ->
-			loop(NewCaches);
+		{cacheload, {NewCaches, NewRelations}} ->
+			loop(NewCaches, NewRelations);
 		{cachedump, PID} ->
-			PID ! {cachedump, Caches},
-			loop(Caches);
-		{cacheget, PID, Type, IDParam, IDs} ->
-			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
-			#{IDParam := Cache} = CacheDir,
+			PID ! {cachedump, {Caches, Relations}},
+			loop(Caches, Relations);
+		{cacheget, PID, Type, "id", IDs} ->
+			Cache = maps:get(Type, Caches, #{}),
 			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Cache)],
 			Data = maps:with(IDs, Cache),
 			PID ! {cacheget, Uncached, Data},
-			loop(Caches);
-		{cacheput, Type, IDParam, NewData} ->
-			CacheDir = maps:get(Type, Caches, #{IDParam => #{}}),
-			#{IDParam := Cache} = CacheDir,
-			loop(Caches#{Type => #{IDParam => maps:merge(Cache, NewData)}});
+			loop(Caches, Relations);
+		{cacheget, PID, Type, "vn", IDs} ->
+			Rel = maps:get({"vn", Type}, Relations, #{}),
+			Uncached = [ID || ID <- IDs, not maps:is_key(ID, Rel)],
+			CachedIDs = lists:flatten(maps:values(maps:with(IDs, Cache))),
+			self() ! {cacheget, self(), Type, "id", CachedIDs},
+			receive {cacheget, [], Data} -> ok end,
+			PID ! {cacheget, Uncached, Data};
+		{cacheput, Type, "id", NewData} ->
+			Cache = maps:get(Type, Caches, #{}),
+			loop(Caches#{Type => maps:merge(Cache, NewData)}, Relations);
+		{cacheput, Type, "vn", NewData} ->
+			Rel = maps:get({"vn", Type}, Relations, #{}),
+			% TODO: extract IDs here
 		Msg ->
 			throw({unknown_msg, Msg}),
-			loop(Caches)
+			loop(Caches, Relations)
 	end.
 
 % this function assumes Flags are always the same for a given type
