@@ -1,5 +1,6 @@
 -module(seiyuu_cache).
 -export([loop/1, get/4]).
+-import(seiyuu_util, [idmap/1]).
 
 loop(Caches, Relations) ->
 	receive
@@ -24,8 +25,7 @@ loop(Caches, Relations) ->
 			loop(Caches, Relations);
 		{cacheput, Type, "id", _, NewData} ->
 			Cache = maps:get(Type, Caches, #{}),
-			DMap = maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- NewData]),
-			loop(Caches#{Type => maps:merge(Cache, DMap)}, Relations);
+			loop(Caches#{Type => maps:merge(Cache, idmap(NewData))}, Relations);
 		{cacheput, Type, "vn", IDs, NewData} ->
 			Rel = maps:get({"vn", Type}, Relations, #{}),
 			NewRel = [{VNID, [ID || #{<<"id">> := ID, <<"vns">> := VNs} <- NewData, [VNID|_] <- VNs, VNID == ID] || VNID <- IDs}],

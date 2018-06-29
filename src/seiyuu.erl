@@ -1,7 +1,7 @@
 -module(seiyuu).
 -export([start/0]).
 -export([index/3, main/3, get/3, q/3]).
--import(seiyuu_util, [bool/1, ht/1, uri_decode/1]).
+-import(seiyuu_util, [bool/1, ht/1, uri_decode/1, idmap/1]).
 
 -define(BOILERPLATE, <<"<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } #mainsearch { float: right; margin-top: auto; margin-bottom: auto; margin-left: auto; } #header { display: flex; margin: 0; padding: 0.1em 0.5em; background-color: #050505; } #header > a[target=main] { font-size: 2em; } body { margin: 0; background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd } iframe { width: 100%; height: 80vh; border: none; }</style></head><body>"/utf8>>).
 
@@ -14,8 +14,6 @@ start() ->
 	Vp = spawn(seiyuu_vndb, loop, [V, Auth]), register(seiyuu_vndb, Vp),
 	Cp = spawn(seiyuu_cache, loop, [#{}]), register(seiyuu_cache, Cp),
 	ok.
-
-idmap(List) -> maps:from_list([{ID, Data} || #{<<"id">> := ID} = Data <- List]).
 
 vnlist(UID) ->
 	#{UID := List} = seiyuu_cache:get(vnlist, [basic], "uid", [UID]),
