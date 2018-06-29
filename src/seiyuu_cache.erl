@@ -2,6 +2,9 @@
 -export([loop/1, get/4]).
 -import(seiyuu_util, [idmap/1]).
 
+% the cache assumes Flags passed to get/4 are always the same
+% for a given type
+
 loop(Caches, Relations) ->
 	receive
 		{cacheload, {NewCaches, NewRelations}} ->
@@ -36,22 +39,22 @@ loop(Caches, Relations) ->
 			loop(Caches, Relations)
 	end.
 
-% this function assumes Flags are always the same for a given type
 % TODO: don't fail completely when vndb isn't reachable, just return
 % some error with cached results
+
+% special case - never cached
+get(Type = vnlist, Flags, IDParam = "uid", [ID]) ->
+	request_uncached(Type, Flags, IDParam, ID);
 get(Type, Flags, IDParam, IDs) ->
 	seiyuu_cache ! {cacheget, self(), Type, IDParam, IDs},
 	receive {cacheget, Uncached, Cached} -> ok end,
-	maps:merge(Cached, request_uncached(Type, Flags, IDParam, Uncached)).
+	NewData = request_uncached(Type, Flags, IDParam, Uncached),
+	seiyuu_cache ! {cacheput, Type, IDParam, IDs, NewData},
+	maps:merge(Cached, NewData).
 
 request_uncached(_, _, _, []) ->
-	#{};
-request_uncached(Type = vnlist, Flags, IDParam = "uid", [ID]) ->
-	response_to_map_(Type, IDParam, [ID], seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]));
+	[];
+request_uncached(Type, Flags, IDParam, [ID]) ->
+	seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
 request_uncached(Type, Flags, IDParam, IDs) ->
-	R = case IDs of
-		[ID] -> seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = ", integer_to_binary(ID), ")"]);
-		_ ->    seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"])
-	end,
-	seiyuu_cache ! {cacheput, Type, IDParam, IDs, R},
-	R.
+	seiyuu_vndb:get_all(Type, Flags, ["(", IDParam, " = [", lists:join(",", [integer_to_binary(X) || X <- IDs]), "])"]).
