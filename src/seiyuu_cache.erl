@@ -43,8 +43,8 @@ loop(Caches, Relations) ->
 % some error with cached results
 
 % special case - never cached
-get(Type = vnlist, Flags, IDParam = "uid", [ID]) ->
-	request_uncached(Type, Flags, IDParam, ID);
+get(Type = vnlist, Flags, IDParam = "uid", IDs) ->
+	request_uncached(Type, Flags, IDParam, IDs);
 get(Type, Flags, IDParam, IDs) ->
 	seiyuu_cache ! {cacheget, self(), Type, IDParam, IDs},
 	receive {cacheget, Uncached, Cached} -> ok end,
