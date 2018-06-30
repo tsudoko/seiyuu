@@ -49,7 +49,7 @@ get(Type, Flags, IDParam, IDs) ->
 	seiyuu_cache ! {cacheget, self(), Type, IDParam, IDs},
 	receive {cacheget, Uncached, Cached} -> ok end,
 	NewData = request_uncached(Type, Flags, IDParam, Uncached),
-	seiyuu_cache ! {cacheput, Type, IDParam, IDs, NewData},
+	seiyuu_cache ! {cacheput, Type, IDParam, Uncached, NewData},
 	lists:merge(Cached, NewData).
 
 request_uncached(_, _, _, []) ->
