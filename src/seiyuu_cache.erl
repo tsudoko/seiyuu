@@ -31,7 +31,7 @@ loop(Caches, Relations) ->
 			loop(Caches#{Type => maps:merge(Cache, idmap(NewData))}, Relations);
 		{cacheput, Type, "vn", IDs, NewData} ->
 			Rel = maps:get({"vn", Type}, Relations, #{}),
-			NewRel = maps:from_list([{VNID, [ID || #{<<"id">> := ID, <<"vns">> := VNs} <- NewData, [ID1|_] <- VNs, ID1 == ID]} || VNID <- IDs]),
+			NewRel = maps:from_list([{VNID, [ID || #{<<"id">> := ID, <<"vns">> := VNs} <- NewData, [VNID1|_] <- VNs, VNID1 == VNID]} || VNID <- IDs]),
 			self() ! {cacheput, Type, "id", IDs, NewData},
 			loop(Caches, Relations#{{"vn", Type} => maps:merge(Rel, NewRel)});
 		Msg ->
