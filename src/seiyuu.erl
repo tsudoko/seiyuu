@@ -133,9 +133,10 @@ q(S, _, Input) ->
 	OrigNames = Mode > 255,
 	UserList = OrigNames and (Mode - 65248 == 117) orelse Mode == 117,
 	true = UserList or (Mode - 65248 == 118) orelse Mode == 118,
-	QueryPid = spawn(?MODULE, query, [self(), query_ids(UserList, Query)]),
+	IDs = query_ids(UserList, Query),
+	QueryPid = spawn(?MODULE, query, [self(), IDs]),
 	receive {QueryPid, Results} -> ok end,
 
 	mod_esi:deliver(S, "Content-type: text/html; charset=utf-8\r\n\r\n"),
 	mod_esi:deliver(S, ?BOILERPLATE),
-	table_html(Results, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).
+	table_html({Results, IDs}, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).
