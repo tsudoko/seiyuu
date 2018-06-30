@@ -12,7 +12,7 @@ start() ->
 	V = vndb:connect(),
 	ok = vndb:login(V, Auth),
 	Vp = spawn(seiyuu_vndb, loop, [V, Auth]), register(seiyuu_vndb, Vp),
-	Cp = spawn(seiyuu_cache, loop, [#{}]), register(seiyuu_cache, Cp),
+	Cp = spawn(seiyuu_cache, loop, [#{}, #{}]), register(seiyuu_cache, Cp),
 	ok.
 
 vnlist(UID) ->

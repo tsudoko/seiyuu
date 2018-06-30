@@ -1,5 +1,5 @@
 -module(seiyuu_cache).
--export([loop/1, get/4]).
+-export([loop/2, get/4]).
 -import(seiyuu_util, [idmap/1]).
 
 % the cache assumes Flags passed to get/4 are always the same
@@ -22,7 +22,7 @@ loop(Caches, Relations) ->
 			Cache = maps:get(Type, Caches, #{}),
 			Rel = maps:get({"vn", Type}, Relations, #{}),
 			Uncached = [ID || ID <- RelIDs, not maps:is_key(ID, Rel)],
-			CachedIDs = lists:flatten(maps:values(maps:with(IDs, Rel))),
+			CachedIDs = lists:flatten(maps:values(maps:with(RelIDs, Rel))),
 			Data = maps:values(maps:with(CachedIDs, Cache)),
 			PID ! {cacheget, Uncached, Data},
 			loop(Caches, Relations);
@@ -31,7 +31,7 @@ loop(Caches, Relations) ->
 			loop(Caches#{Type => maps:merge(Cache, idmap(NewData))}, Relations);
 		{cacheput, Type, "vn", IDs, NewData} ->
 			Rel = maps:get({"vn", Type}, Relations, #{}),
-			NewRel = maps:from_list([{VNID, [ID || #{<<"id">> := ID, <<"vns">> := VNs} <- NewData, [VNID|_] <- VNs, VNID == ID] || VNID <- IDs}]),
+			NewRel = maps:from_list([{VNID, [ID || #{<<"id">> := ID, <<"vns">> := VNs} <- NewData, [ID1|_] <- VNs, ID1 == ID]} || VNID <- IDs]),
 			self() ! {cacheput, Type, "id", IDs, NewData},
 			loop(Caches, Relations#{{"vn", Type} => maps:merge(Rel, NewRel)});
 		Msg ->
@@ -50,7 +50,7 @@ get(Type, Flags, IDParam, IDs) ->
 	receive {cacheget, Uncached, Cached} -> ok end,
 	NewData = request_uncached(Type, Flags, IDParam, Uncached),
 	seiyuu_cache ! {cacheput, Type, IDParam, IDs, NewData},
-	maps:merge(Cached, NewData).
+	lists:merge(Cached, NewData).
 
 request_uncached(_, _, _, []) ->
 	[];
