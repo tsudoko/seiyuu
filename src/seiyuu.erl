@@ -1,5 +1,6 @@
 -module(seiyuu).
 -export([start/0]).
+-export([vnlist/2, query/2]).
 -export([index/3, main/3, get/3, q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1, idmap/1]).
 
@@ -15,10 +16,10 @@ start() ->
 	Cp = spawn(seiyuu_cache, loop, [#{}, #{}]), register(seiyuu_cache, Cp),
 	ok.
 
-vnlist(UID) ->
+vnlist(PID, UID) ->
 	#{UID := List} = seiyuu_cache:get(vnlist, [basic], "uid", [UID]),
-	[ID || #{<<"vn">> := ID} <- List].
-query(IDs) ->
+	PID ! {self(), [ID || #{<<"vn">> := ID} <- List]}.
+query(PID, IDs) ->
 	% TODO: sort by vn
 	%   ↑   seems a bit complex though, we'd need to sort all the keys
 	%       (staff, char, alias) and then sort each alias by VNs too
@@ -38,7 +39,7 @@ query(IDs) ->
 				#{<<"id">> := C, <<"voiced">> := Voiced} <- Chars,
 				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
 			CharList /= []]]],
-	{idmap(VNs), idmap(Staff), idmap(Chars), StaffChars}.
+	PID ! {self(), {idmap(VNs), idmap(Staff), idmap(Chars), StaffChars}}.
 
 % --- html stuff below
 
@@ -98,7 +99,8 @@ table_html_chars(_, _, _, _, [], _, _) -> ok.
 query_ids(_UserList = false, Query) ->
 	[list_to_integer(X) || X <- string:split(Query, ",", all)];
 query_ids(_UserList = true, Query) ->
-	vnlist(list_to_integer(Query)).
+	PID = spawn(?MODULE, vnlist, [self(), list_to_integer(Query)]),
+	receive {PID, VNList} -> VNList end.
 
 index(S, _, _) ->
 	mod_esi:deliver(S, ["Content-type: text/html; charset=utf-8\r\n\r\n", ?BOILERPLATE,
@@ -131,8 +133,9 @@ q(S, _, Input) ->
 	OrigNames = Mode > 255,
 	UserList = OrigNames and (Mode - 65248 == 117) orelse Mode == 117,
 	true = UserList or (Mode - 65248 == 118) orelse Mode == 118,
-	IDs = query_ids(UserList, Query),
+	QueryPid = spawn(?MODULE, query, [self(), query_ids(UserList, Query)]),
+	receive {QueryPid, Results} -> ok end,
 
 	mod_esi:deliver(S, "Content-type: text/html; charset=utf-8\r\n\r\n"),
 	mod_esi:deliver(S, ?BOILERPLATE),
-	table_html({query(IDs), IDs}, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).
+	table_html(Results, OrigNames, fun(R) -> mod_esi:deliver(S, R) end).
