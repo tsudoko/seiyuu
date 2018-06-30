@@ -17,8 +17,7 @@ start() ->
 	ok.
 
 vnlist(PID, UID) ->
-	#{UID := List} = seiyuu_cache:get(vnlist, [basic], "uid", [UID]),
-	PID ! {self(), [ID || #{<<"vn">> := ID} <- List]}.
+	PID ! {self(), [ID || #{<<"vn">> := ID} <- seiyuu_cache:get(vnlist, [basic], "uid", [UID])]}.
 query(PID, IDs) ->
 	% TODO: sort by vn
 	%   ↑   seems a bit complex though, we'd need to sort all the keys
