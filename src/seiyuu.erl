@@ -23,18 +23,15 @@ table(Chars, Staff, VNs) ->
 table_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
 	table_(Rest, IDs, table_char(CID, Voiced, IDs, R));
 table_([], _, R) ->
-	[{K, maps:to_list(V)} || {K, V} <- maps:to_list(R)].
+	Usort = fun(_, {AList, VList}) -> {lists:usort(AList), lists:usort(VList)} end,
+	[{K, maps:to_list(maps:map(Usort, V))} || {K, V} <- maps:to_list(R)].
 table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
 	SR = maps:get(SID, R, #{}),
 	{AIDs, VIDs} = CR = maps:get(CID, SR, {[], []}),
-	NewCR = case {lists:member(SID, StaffIDs) and lists:member(VID, VNIDs),
-			lists:member(AID, AIDs), lists:member(VID, VIDs)} of
-		{true, false, false} -> {[AID|AIDs], [VID|VIDs]};
-		{true, false, true} -> {[AID|AIDs], VIDs};
-		{true, true, false} -> {AIDs, [VID|VIDs]};
-		{_, true, true} -> CR;
-		{false, _, _} -> CR
+	NewCR = case {lists:member(SID, StaffIDs), lists:member(VID, VNIDs)} of
+		{true, true} ->	{[AID|AIDs], [VID|VIDs]};
+		_ -> CR
 	end,
 	table_char(CID, Rest, {StaffIDs, VNIDs}, R#{SID => SR#{CID => NewCR}});
 table_char(_, [], _, R) ->
