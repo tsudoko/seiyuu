@@ -79,7 +79,7 @@ table_html(R, O, Send) ->
 	table_html_staff(R, O, Send).
 table_html_staff({{VNs, Staff, Chars, [{S, CList}|Rest]}, IDs}, Orig, Send) ->
 	#{S := #{<<"main_alias">> := Amain}} = Staff,
-	Send("<tr class=staff><td colspan=2>"),
+	Send("<tr class=staff><td colspan=3>"),
 	Send(vndb_link("s", S, data_name(Staff, S), Orig)),
 	Send("</td></tr>"),
 	table_html_chars({VNs, Staff, Chars}, IDs, Amain, CList, Orig, Send),
