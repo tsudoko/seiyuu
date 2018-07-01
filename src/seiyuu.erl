@@ -24,7 +24,7 @@ table_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
 	table_(Rest, IDs, table_char(CID, Voiced, IDs, R));
 table_([], _, R) ->
 	Usort = fun(C, {AList, VList}) -> {C, lists:usort(AList), lists:usort(VList)} end,
-	[{K, maps:values(maps:map(Usort, V))} || {K, V} <- maps:to_list(R)].
+	[{K, lists:sort(fun vnsort/2, maps:values(maps:map(Usort, V)))} || {K, V} <- maps:to_list(R)].
 table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
 	SR = maps:get(SID, R, #{}),
@@ -37,12 +37,18 @@ table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 table_char(_, [], _, R) ->
 	R.
 
+vnsort({_, _, [A|Arest]}, {_, _, [B|Brest]}) when A == B ->
+	vnsort({null, null, Arest}, {null, null, Brest});
+vnsort({_, _, [A|_]}, {_, _, [B|_]}) ->
+	A =< B;
+vnsort({_, _, _}, {_, _, []}) ->
+	false;
+vnsort({_, _, []}, {_, _, _}) ->
+	true.
+
 vnlist(PID, UID) ->
 	PID ! {self(), [ID || #{<<"vn">> := ID} <- seiyuu_cache:get(vnlist, [basic], "uid", [UID])]}.
 query(PID, IDs) ->
-	% TODO: sort by vn
-	%   ↑   seems a bit complex though, we'd need to sort all the keys
-	%       (staff, char, alias) and then sort each alias by VNs too
 	VNs = seiyuu_cache:get(vn, [basic], "id", IDs),
 	Chars = seiyuu_cache:get(character, [basic, voiced, vns], "vn", IDs),
 	Staff = seiyuu_cache:get(staff, [basic, aliases], "id",
