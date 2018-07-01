@@ -1,5 +1,5 @@
 -module(seiyuu_util).
--export([bool/1, ht/1, uri_decode/1, idmap/1, deep_map_to_list/1]).
+-export([bool/1, ht/1, uri_decode/1, idmap/1]).
 
 bool(0) -> false;
 bool(N) when N+1 == N+1 -> true.
