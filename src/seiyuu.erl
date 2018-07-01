@@ -130,8 +130,9 @@ get(S, _, Input) ->
 	IDs = proplists:get_value("ids", Q),
 	Orig = list_to_integer(proplists:get_value("orig", Q, 1)) * $ﻠ,
 	User = list_to_integer(proplists:get_value("user", Q, 0)),
-	% TODO: uri_encode                           ↓ (no utf-8 aware uri_encode in stdlib)
-	mod_esi:deliver(S, "Location: q/" ++ [$v + Orig - User] ++ IDs ++ "\r\n\r\n").
+	ModeChar = $v + Orig - User,
+	ModeCharEncoded = [io_lib:format("%~.16B", [C]) || C <- binary_to_list(<<ModeChar/utf8>>)],
+	mod_esi:deliver(S, "Location: q/" ++ lists:flatten(ModeCharEncoded) ++ IDs ++ "\r\n\r\n").
 q(S, _, Input) ->
 	[Mode|Query] = uri_decode(Input),
 	OrigNames = Mode > $ﻠ,
