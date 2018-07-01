@@ -3,6 +3,7 @@
 -export([vnlist/2, query/2]).
 -export([index/3, main/3, get/3, q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1, idmap/1]).
+-export([staffchars/3]).
 
 -define(BOILERPLATE, <<"<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } #mainsearch { float: right; margin-top: auto; margin-bottom: auto; margin-left: auto; } #header { display: flex; margin: 0; padding: 0.1em 0.5em; background-color: #050505; } #header > a[target=main] { font-size: 2em; } body { margin: 0; background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd } iframe { width: 100%; height: 80vh; border: none; }</style></head><body>"/utf8>>).
 
@@ -16,6 +17,26 @@ start() ->
 	Cp = spawn(seiyuu_cache, loop, [#{}, #{}]), register(seiyuu_cache, Cp),
 	ok.
 
+staffchars(Chars, Staff, VNs) ->
+	StaffIDs = [ID || #{<<"id">> := ID} <- Staff],
+	VNIDs = [ID || #{<<"id">> := ID} <- VNs],
+	staffchars_(Chars, {StaffIDs, VNIDs}, #{}).
+staffchars_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
+	staffchars_(Rest, IDs, staffchars_char(CID, Voiced, IDs, R));
+staffchars_([], _, R) ->
+	R.
+staffchars_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
+	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
+	SR = maps:get(SID, R, #{}),
+	{AIDs, VIDs} = CR = maps:get(CID, SR, {[], []}),
+	NewCR = case {lists:member(SID, StaffIDs), lists:member(VID, VNIDs)} of
+		{true, true} ->	{[AID|AIDs], [VID|VIDs]};
+		_ -> CR
+	end,
+	staffchars_char(CID, Rest, {StaffIDs, VNIDs}, R#{SID => SR#{CID => NewCR}});
+staffchars_char(_, [], _, R) ->
+	R.
+
 vnlist(PID, UID) ->
 	PID ! {self(), [ID || #{<<"vn">> := ID} <- seiyuu_cache:get(vnlist, [basic], "uid", [UID])]}.
 query(PID, IDs) ->
@@ -26,19 +47,7 @@ query(PID, IDs) ->
 	Chars = seiyuu_cache:get(character, [basic, voiced, vns], "vn", IDs),
 	Staff = seiyuu_cache:get(staff, [basic, aliases], "id",
 		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- Chars])])),
-	% [{staff1, [{alias1, [char1, char2...]}, {alias2...}...]}, {staff2...}...]
-	% maybe TODO: represent the data the same way as it's laid out in the html table
-	% i.e. [{staff1, [{char1, alias1, [vn1, vn2...]}, {char2...}...]...]
-	StaffChars =
-	[{S, AliasList} ||
-		#{<<"id">> := S, <<"aliases">> := Aliases} <- Staff,
-		AliasList <- [[{A, CharList} ||
-			[A|_] <- Aliases,
-			CharList <- [[C ||
-				#{<<"id">> := C, <<"voiced">> := Voiced} <- Chars,
-				lists:member(A, [V || #{<<"aid">> := V} <- Voiced])]],
-			CharList /= []]]],
-	PID ! {self(), {idmap(VNs), idmap(Staff), idmap(Chars), StaffChars}}.
+	PID ! {self(), {idmap(VNs), idmap(Staff), idmap(Chars), staffchars(Chars, Staff, VNs)}}.
 
 % --- html stuff below
 
