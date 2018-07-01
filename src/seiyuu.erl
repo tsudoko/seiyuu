@@ -16,15 +16,15 @@ start() ->
 	Cp = spawn(seiyuu_cache, loop, [#{}, #{}]), register(seiyuu_cache, Cp),
 	ok.
 
-staffchars(Chars, Staff, VNs) ->
+table(Chars, Staff, VNs) ->
 	StaffIDs = [ID || #{<<"id">> := ID} <- Staff],
 	VNIDs = [ID || #{<<"id">> := ID} <- VNs],
-	staffchars_(Chars, {StaffIDs, VNIDs}, #{}).
-staffchars_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
-	staffchars_(Rest, IDs, staffchars_char(CID, Voiced, IDs, R));
-staffchars_([], _, R) ->
+	table_(Chars, {StaffIDs, VNIDs}, #{}).
+table_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
+	table_(Rest, IDs, table_char(CID, Voiced, IDs, R));
+table_([], _, R) ->
 	[{K, maps:to_list(V)} || {K, V} <- maps:to_list(R)].
-staffchars_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
+table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
 	SR = maps:get(SID, R, #{}),
 	{AIDs, VIDs} = CR = maps:get(CID, SR, {[], []}),
@@ -32,8 +32,8 @@ staffchars_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 		{true, true} ->	{[AID|AIDs], [VID|VIDs]};
 		_ -> CR
 	end,
-	staffchars_char(CID, Rest, {StaffIDs, VNIDs}, R#{SID => SR#{CID => NewCR}});
-staffchars_char(_, [], _, R) ->
+	table_char(CID, Rest, {StaffIDs, VNIDs}, R#{SID => SR#{CID => NewCR}});
+table_char(_, [], _, R) ->
 	R.
 
 vnlist(PID, UID) ->
@@ -46,7 +46,7 @@ query(PID, IDs) ->
 	Chars = seiyuu_cache:get(character, [basic, voiced, vns], "vn", IDs),
 	Staff = seiyuu_cache:get(staff, [basic, aliases], "id",
 		lists:usort([ID || #{<<"id">> := ID} <- lists:flatten([V || #{<<"voiced">> := V} <- Chars])])),
-	PID ! {self(), {idmap(VNs), idmap(Staff), idmap(Chars), staffchars(Chars, Staff, VNs)}}.
+	PID ! {self(), {idmap(VNs), idmap(Staff), idmap(Chars), table(Chars, Staff, VNs)}}.
 
 % --- html stuff below
 
@@ -89,7 +89,7 @@ table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, [{C, {AList, VList}}|Rest]
 	Send("<tr><td>"),
 	Send(vndb_link("c", C, data_name(Chars, C), Orig)),
 	Send("</td><td>"),
-	% TODO: move these usorts to staffchars/3 if possible
+	% TODO: move these usorts to table/3 if possible
 	case lists:usort(AList) of
 		[Amain] -> "";
 		_ -> Send(lists:join(", ", lists:usort([vndb_alias(alias_name(Staff, A), Orig) || A <- AList])))
