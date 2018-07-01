@@ -132,15 +132,15 @@ get(S, _, Input) ->
 	Q = httpd:parse_query(Input),
 	% TODO: strip whitespace (all whitespace, everywhere, not just ^ and $)
 	IDs = proplists:get_value("ids", Q),
-	Orig = list_to_integer(proplists:get_value("orig", Q, 1)) * 65248,
+	Orig = list_to_integer(proplists:get_value("orig", Q, 1)) * $ﻠ,
 	User = list_to_integer(proplists:get_value("user", Q, 0)),
 	% TODO: uri_encode                           ↓ (no utf-8 aware uri_encode in stdlib)
-	mod_esi:deliver(S, "Location: q/" ++ [118 + Orig - User] ++ IDs ++ "\r\n\r\n").
+	mod_esi:deliver(S, "Location: q/" ++ [$v + Orig - User] ++ IDs ++ "\r\n\r\n").
 q(S, _, Input) ->
 	[Mode|Query] = uri_decode(Input),
-	OrigNames = Mode > 255,
-	UserList = OrigNames and (Mode - 65248 == 117) orelse Mode == 117,
-	true = UserList or (Mode - 65248 == 118) orelse Mode == 118,
+	OrigNames = Mode > $ﻠ,
+	UserList = OrigNames and (Mode - $ﻠ == $u) orelse Mode == $u,
+	true = UserList or (Mode - $ﻠ == $v) orelse Mode == $v,
 	IDs = query_ids(UserList, Query),
 	QueryPid = spawn(?MODULE, query, [self(), IDs]),
 	receive {QueryPid, Results} -> ok end,
