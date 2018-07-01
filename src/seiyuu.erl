@@ -23,8 +23,8 @@ table(Chars, Staff, VNs) ->
 table_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
 	table_(Rest, IDs, table_char(CID, Voiced, IDs, R));
 table_([], _, R) ->
-	Usort = fun(_, {AList, VList}) -> {lists:usort(AList), lists:usort(VList)} end,
-	[{K, maps:to_list(maps:map(Usort, V))} || {K, V} <- maps:to_list(R)].
+	Usort = fun(C, {AList, VList}) -> {C, lists:usort(AList), lists:usort(VList)} end,
+	[{K, maps:values(maps:map(Usort, V))} || {K, V} <- maps:to_list(R)].
 table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
 	SR = maps:get(SID, R, #{}),
@@ -86,7 +86,7 @@ table_html_staff({{VNs, Staff, Chars, [{S, CList}|Rest]}, IDs}, Orig, Send) ->
 	table_html_staff({{VNs, Staff, Chars, Rest}, IDs}, Orig, Send);
 table_html_staff({{_, _, _, []}, _}, _, Send) ->
 	Send("</table>").
-table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, [{C, {AList, VList}}|Rest], Orig, Send) ->
+table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, [{C, AList, VList}|Rest], Orig, Send) ->
 	Send("<tr><td>"),
 	Send(vndb_link("c", C, data_name(Chars, C), Orig)),
 	Send("</td><td>"),
