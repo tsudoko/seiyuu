@@ -28,9 +28,13 @@ table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
 	SR = maps:get(SID, R, #{}),
 	{AIDs, VIDs} = CR = maps:get(CID, SR, {[], []}),
-	NewCR = case {lists:member(SID, StaffIDs), lists:member(VID, VNIDs)} of
-		{true, true} ->	{[AID|AIDs], [VID|VIDs]};
-		_ -> CR
+	NewCR = case {lists:member(SID, StaffIDs) and lists:member(VID, VNIDs),
+			lists:member(AID, AIDs), lists:member(VID, VIDs)} of
+		{true, false, false} -> {[AID|AIDs], [VID|VIDs]};
+		{true, false, true} -> {[AID|AIDs], VIDs};
+		{true, true, false} -> {AIDs, [VID|VIDs]};
+		{_, true, true} -> CR;
+		{false, _, _} -> CR
 	end,
 	table_char(CID, Rest, {StaffIDs, VNIDs}, R#{SID => SR#{CID => NewCR}});
 table_char(_, [], _, R) ->
@@ -89,13 +93,12 @@ table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, [{C, {AList, VList}}|Rest]
 	Send("<tr><td>"),
 	Send(vndb_link("c", C, data_name(Chars, C), Orig)),
 	Send("</td><td>"),
-	% TODO: move these usorts to table/3 if possible
-	case lists:usort(AList) of
+	case AList of
 		[Amain] -> "";
-		_ -> Send(lists:join(", ", lists:usort([vndb_alias(alias_name(Staff, A), Orig) || A <- AList])))
+		_ -> Send(lists:join(", ", [vndb_alias(alias_name(Staff, A), Orig) || A <- AList]))
 	end,
 	Send("</td><td>"),
-	Send(lists:join(", ", lists:usort([vndb_link("v", V, data_title(VNs, V), Orig) || V <- VList]))),
+	Send(lists:join(", ", [vndb_link("v", V, data_title(VNs, V), Orig) || V <- VList])),
 	Send("</td></tr>"),
 	table_html_chars(D, IDs, Amain, Rest, Orig, Send);
 table_html_chars(_, _, _, [], _, _) -> ok.
