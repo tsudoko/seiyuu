@@ -9,7 +9,7 @@
 start() ->
 	% maybe TODO: lazy login
 	% TODO: read values below from a config file (cache too?)
-	Auth = [{protocol, 1}, {client, <<"test">>}, {clientver, <<"0.1">>}],
+	Auth = [{protocol, 1}, {client, <<"seiyuu">>}, {clientver, <<"0.1">>}],
 	V = vndb:connect(),
 	ok = vndb:login(V, Auth),
 	Vp = spawn(seiyuu_vndb, loop, [V, Auth]), register(seiyuu_vndb, Vp),
