@@ -3,7 +3,6 @@
 -export([vnlist/2, query/2]).
 -export([index/3, main/3, get/3, q/3]).
 -import(seiyuu_util, [bool/1, ht/1, uri_decode/1, idmap/1]).
--export([staffchars/3]).
 
 -define(BOILERPLATE, <<"<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff { margin-left: 2em; } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-of-type(2n) { background-color: #181818; } tr:not(.staff):nth-of-type(2n-1) { background-color: #1e1e1e; } #mainsearch { float: right; margin-top: auto; margin-bottom: auto; margin-left: auto; } #header { display: flex; margin: 0; padding: 0.1em 0.5em; background-color: #050505; } #header > a[target=main] { font-size: 2em; } body { margin: 0; background-color: #111; color: #909090; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #7bd } iframe { width: 100%; height: 80vh; border: none; }</style></head><body>"/utf8>>).
 
@@ -24,7 +23,7 @@ staffchars(Chars, Staff, VNs) ->
 staffchars_([#{<<"id">> := CID, <<"voiced">> := Voiced}|Rest], IDs, R) ->
 	staffchars_(Rest, IDs, staffchars_char(CID, Voiced, IDs, R));
 staffchars_([], _, R) ->
-	R.
+	[{K, maps:to_list(V)} || {K, V} <- maps:to_list(R)].
 staffchars_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 	#{<<"id">> := SID, <<"vid">> := VID, <<"aid">> := AID} = V,
 	SR = maps:get(SID, R, #{}),
@@ -51,9 +50,6 @@ query(PID, IDs) ->
 
 % --- html stuff below
 
-char_vns(Chars, ID) ->
-	#{ID := #{<<"vns">> := VNs}} = Chars,
-	[V || [V|_] <- VNs].
 data_name(Data, ID) ->
 	#{ID := #{<<"name">> := Romaji, <<"original">> := Original}} = Data,
 	{Romaji, Original}.
@@ -80,29 +76,29 @@ vndb_alias({Name, Alt}, _Orig = true) ->
 table_html(R, O, Send) ->
 	Send("<table cellspacing=0>"),
 	table_html_staff(R, O, Send).
-table_html_staff({{VNs, Staff, Chars, [{S, A}|Rest]}, IDs}, Orig, Send) ->
+table_html_staff({{VNs, Staff, Chars, [{S, CList}|Rest]}, IDs}, Orig, Send) ->
 	#{S := #{<<"main_alias">> := Amain}} = Staff,
 	Send("<tr class=staff><td colspan=2>"),
 	Send(vndb_link("s", S, data_name(Staff, S), Orig)),
 	Send("</td></tr>"),
-	table_html_aliases({VNs, Staff, Chars}, IDs, Amain, A, Orig, Send),
+	table_html_chars({VNs, Staff, Chars}, IDs, Amain, CList, Orig, Send),
 	table_html_staff({{VNs, Staff, Chars, Rest}, IDs}, Orig, Send);
 table_html_staff({{_, _, _, []}, _}, _, Send) ->
 	Send("</table>").
-table_html_aliases(D, IDs, Amain, [{A, C}|Rest], Orig, Send) ->
-	table_html_chars(D, IDs, Amain, A, C, Orig, Send),
-	table_html_aliases(D, IDs, Amain, Rest, Orig, Send);
-table_html_aliases(_, _, _, [], _, _) -> ok.
-table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, A, [C|Rest], Orig, Send) ->
+table_html_chars(D = {VNs, Staff, Chars}, IDs, Amain, [{C, {AList, VList}}|Rest], Orig, Send) ->
 	Send("<tr><td>"),
 	Send(vndb_link("c", C, data_name(Chars, C), Orig)),
 	Send("</td><td>"),
-	Send(case Amain == A of true -> ""; false -> vndb_alias(alias_name(Staff, A), Orig) end),
+	% TODO: move these usorts to staffchars/3 if possible
+	case lists:usort(AList) of
+		[Amain] -> "";
+		_ -> Send(lists:join(", ", lists:usort([vndb_alias(alias_name(Staff, A), Orig) || A <- AList])))
+	end,
 	Send("</td><td>"),
-	Send(lists:join(", ", lists:usort([vndb_link("v", V, data_title(VNs, V), Orig) || V <- char_vns(Chars, C), lists:member(V, IDs)]))),
+	Send(lists:join(", ", lists:usort([vndb_link("v", V, data_title(VNs, V), Orig) || V <- VList]))),
 	Send("</td></tr>"),
-	table_html_chars(D, IDs, Amain, A, Rest, Orig, Send);
-table_html_chars(_, _, _, _, [], _, _) -> ok.
+	table_html_chars(D, IDs, Amain, Rest, Orig, Send);
+table_html_chars(_, _, _, [], _, _) -> ok.
 
 query_ids(_UserList = false, Query) ->
 	[list_to_integer(X) || X <- string:split(Query, ",", all)];
