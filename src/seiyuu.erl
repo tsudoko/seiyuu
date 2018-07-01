@@ -37,7 +37,7 @@ table_char(CID, [V|Rest], {StaffIDs, VNIDs}, R) ->
 table_char(_, [], _, R) ->
 	R.
 
-vnsort({_, _, [A|Arest]}, {_, _, [B|Brest]}) when A == B ->
+vnsort({_, _, [A|Arest]}, {_, _, [A|Brest]}) ->
 	vnsort({null, null, Arest}, {null, null, Brest});
 vnsort({_, _, [A|_]}, {_, _, [B|_]}) ->
 	A =< B;
