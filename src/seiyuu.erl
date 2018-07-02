@@ -6,6 +6,10 @@
 
 -define(BOILERPLATE, <<"<!doctype html><html><head><style>table { width: 75%; margin-left: auto; margin-right: auto; } tr.staff > td { margin-left: 2em; background-color: rgba(0, 0, 0, 0.5); } tr:not(.staff) > td { padding-left: 2em; } td { padding: 0.1em 1em; } tr:not(.staff):nth-child(2n-1) { background-color: rgba(255, 255, 255, 0.025); } #mainsearch { float: right; margin-top: auto; margin-bottom: auto; margin-left: auto; } #header { max-height: 9.5vh; display: flex; margin: 0; padding: 0.1em 0.5em; background-color: rgba(0, 0, 0, 0.5); } #header > a[target=main] { font-size: 2em; } body { margin: 0; background-color: #111; color: #ccc; font-family: PC9800, VGA, sans-serif; } a { text-decoration: none; color: #0080ff } a:hover { color: #00c0ff; } #page-container { position: fixed; width: 100%; height: 100%; } #page-container > iframe { width: 100%; height: 100%; border: none; }</style></head><body>"/utf8>>).
 
+% TODO: supervisor
+% TODO: app behaviour
+% TODO: move esi functions somewhere else
+
 start() ->
 	% maybe TODO: lazy login
 	% TODO: read values below from a config file (cache too?)
